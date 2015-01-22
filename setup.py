@@ -26,6 +26,8 @@ class config_pcap(config.config):
         if os.path.exists(os.path.join(cfg['include_dirs'][0], 'pcap-int.h')):
             d['HAVE_PCAP_INT_H'] = 1
         buf = open(os.path.join(cfg['include_dirs'][0], 'pcap.h')).read()
+        if os.path.exists(os.path.join(cfg['include_dirs'][0], 'pcap', 'pcap.h')):
+            buf += open(os.path.join(cfg['include_dirs'][0], 'pcap', 'pcap.h')).read()
         if buf.find('pcap_file(') != -1:
             d['HAVE_PCAP_FILE'] = 1
         if buf.find('pcap_compile_nopcap(') != -1:
@@ -46,6 +48,10 @@ class config_pcap(config.config):
                 incdirs = [ os.path.join(d, sd) ]
                 if os.path.exists(os.path.join(d, sd, 'pcap.h')):
                     cfg['include_dirs'] = [ os.path.join(d, sd) ]
+                    cfg['library_dirs'] = [ os.path.join(d, sd) ]
+                    cfg['libraries'] = [ 'pcap' ]
+                    self._write_config_h(cfg)
+                    return cfg
                     for sd in ('lib', ''):
                         for lib in (('pcap', 'libpcap.a'),
                                     ('pcap', 'libpcap.dylib'),

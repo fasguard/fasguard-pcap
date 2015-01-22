@@ -8,6 +8,7 @@
 # include <sys/ioctl.h>
 # include <sys/time.h>
 # include <fcntl.h>
+# include <stdlib.h>
 # include <string.h>
 # include <signal.h>
 # include <unistd.h>
