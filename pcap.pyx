@@ -11,10 +11,12 @@ accessible through this mechanism.
 """
 
 __author__ = 'Dug Song <dugsong@monkey.org>'
+__maintainer__ = 'George Neville-Neil <gnn@neville-neil.com>'
 __copyright__ = 'Copyright (c) 2004 Dug Song'
 __license__ = 'BSD license'
-__url__ = 'http://monkey.org/~dugsong/pypcap/'
+__url__ = 'http://pcs.sf.net'
 __version__ = '1.1'
+__revison__ = '2'
 
 import sys
 import calendar
