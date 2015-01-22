@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: pcap_ex.c,v 1.12 2005/10/16 22:58:14 dugsong Exp $ */
 
 #ifdef _WIN32
 # include <winsock2.h>
@@ -35,8 +35,6 @@ pcap_ex_immediate(pcap_t *pcap)
 	int n = 1;
 	
 	return ioctl(pcap_fileno(pcap), BIOCIMMEDIATE, &n);
-#elif defined _WIN32
-	return pcap_setmintocopy(pcap, 1);
 #else
 	return (0);
 #endif
@@ -275,14 +273,7 @@ pcap_ex_compile_nopcap(int snaplen, int dlt, struct bpf_program *fp, char *str,
     int optimize, unsigned int netmask)
 {
 #ifdef HAVE_PCAP_COMPILE_NOPCAP
-  #ifdef __NetBSD__
-	/* We love consistent interfaces */
-	char errbuf[PCAP_ERRBUF_SIZE];
-	return (pcap_compile_nopcap(snaplen, dlt, fp, str, optimize, netmask,
-		errbuf));
-  #else
 	return (pcap_compile_nopcap(snaplen, dlt, fp, str, optimize, netmask));
-  #endif
 #else
 	FILE *f;
 	struct pcap_file_header hdr;

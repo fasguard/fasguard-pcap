@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: pcap_ex.h,v 1.6 2005/08/29 21:11:40 dugsong Exp $ */
 
 #ifndef PCAP_EX_H
 #define PCAP_EX_H

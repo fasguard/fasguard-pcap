@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# $Id$
+# $Id: setup.py,v 1.14 2005/10/16 23:07:03 dugsong Exp $
 
 from distutils.core import setup, Extension
 from distutils.command import config, clean
@@ -42,13 +42,12 @@ class config_pcap(config.config):
             dirs = [ '/usr', sys.prefix ] + glob.glob('/opt/libpcap*') + \
                    glob.glob('../libpcap*') + glob.glob('../wpdpack*')
         for d in dirs:
-            for sd in ('include/pcap', 'include', ''):
+            for sd in ('include', 'include/pcap', ''):
                 incdirs = [ os.path.join(d, sd) ]
                 if os.path.exists(os.path.join(d, sd, 'pcap.h')):
                     cfg['include_dirs'] = [ os.path.join(d, sd) ]
-                    for sd in ('lib', 'lib64', ''):
+                    for sd in ('lib', ''):
                         for lib in (('pcap', 'libpcap.a'),
-                                    ('pcap', 'libpcap.so'),
                                     ('pcap', 'libpcap.dylib'),
                                     ('wpcap', 'wpcap.lib')):
                             if os.path.exists(os.path.join(d, sd, lib[1])):
@@ -61,7 +60,7 @@ class config_pcap(config.config):
                                 print 'found', cfg
                                 self._write_config_h(cfg)
                                 return cfg
-        raise Exception("couldn't find pcap build or installation directory")
+        raise "couldn't find pcap build or installation directory"
     
     def run(self):
         #config.log.set_verbosity(0)
@@ -92,8 +91,8 @@ pcap = Extension(name='pcap',
 
 pcap_cmds = { 'config':config_pcap, 'clean':clean_pcap }
 
-setup(name='pcap',
-      version='1.1',
+setup(name='py-pypcap',
+      version='1.1.2',
       author='Dug Song',
       author_email='dugsong@monkey.org',
       url='http://monkey.org/~dugsong/pypcap/',
