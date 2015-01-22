@@ -1,4 +1,4 @@
 include Makefile
-include	bpf.pxd
-include *.h
-include LICENSE
+include	pcs/bpf/bpf.pxd
+include pcs/pcap/*.h
+include pcs/pcap/LICENSE

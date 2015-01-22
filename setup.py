@@ -66,7 +66,7 @@ class config_pcap(config.config):
             d['HAVE_PCAP_COMPILE_NOPCAP'] = 1
         if buf.find('pcap_setnonblock(') != -1:
             d['HAVE_PCAP_SETNONBLOCK'] = 1
-        f = open('config.h', 'w')
+        f = open('pcs/pcap/config.h', 'w')
         for k, v in d.iteritems():
             f.write('#define %s %s\n' % (k, v))
         f.close()
@@ -104,15 +104,15 @@ class config_pcap(config.config):
 # dependencies on *.pxd files. If you change them you SHOULD rebuild from
 # scratch to be sure dependencies are not stale.
 
-pcap = Extension(name='pcap',
-                 sources=[ 'pcap.pyx', 'pcap_ex.c' ],
-                 include_dirs=['/usr/include/pcap', '.'],
+pcap = Extension(name='pcs.pcap',
+                 sources=[ 'pcs/pcap/pcap.pyx', 'pcs/pcap/pcap_ex.c' ],
+                 include_dirs=['/usr/include/pcap', './pcs/bpf/', '.'],
                  library_dirs=['/usr/lib'],
                  libraries=['pcap']
 	)
 
 bpf = Extension(name='bpf',
-                 sources=[ 'bpf.pyx' ],
+                 sources=[ 'pcs/bpf/bpf.pyx' ],
                  include_dirs=['/usr/include/pcap'],
                  library_dirs=['/usr/lib'],
                  libraries=['pcap']
@@ -126,6 +126,7 @@ setup(name='pcs',
       author='George V. Neville-Neil',
       author_email='gnn@neville-neil.com',
       url='http://pcs.sf.net',
+      packages = ['pcs'],
       cmdclass=pcs_cmds,
       ext_modules = [ bpf, pcap, ],
       )

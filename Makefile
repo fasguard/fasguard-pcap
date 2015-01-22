@@ -22,5 +22,5 @@ dist:
 clean:
 	$(PYTHON) setup.py clean
 	rm -rf build dist MANIFEST \
-		pcap.c \
-		bpf.c
+		pcs/pcap/pcap.c \
+		pcs/bpf/bpf.c
