@@ -1,4 +1,8 @@
 include Makefile
+include README
+include INSTALL
+include COPYRIGHT
+include CONTRIBUTORS
 include	pcs/bpf/bpf.pxd
 include pcs/pcap/*.h
 include pcs/pcap/LICENSE

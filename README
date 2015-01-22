@@ -1,19 +1,9 @@
+Packet Construction Set
 
-Python pcap module
-------------------
+George V. Neville-Neil
 
-this is a simplified object-oriented Python wrapper for libpcap -
-the current tcpdump.org version, the legacy version shipping with 
-some of the BSD operating systems, and the WinPcap port for Windows.
+Version 0.3
 
-example use:
+5 September 2006
 
->>> import pcap
->>> for ts, pkt in pcap.pcap():
-...     print ts, `pkt`
-... 
-
--d.
-
----
-http://monkey.org/~dugsong
+http://pcs.sf.net

@@ -1,0 +1,6 @@
+TODO for PCS
+
+*) Come up with a fix for BPF loopback injection on FreeBSD and push the
+   fix upstream.
+
+*) Teach BPF and pcap how to request allmulti.
