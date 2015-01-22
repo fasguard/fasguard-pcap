@@ -1,34 +1,26 @@
-# $Id: Makefile,v 1.6 2005/10/17 00:08:17 dugsong Exp $
+#
+# Author: George V. Neville-Neil
+#
+# Makefile for building distributions of PCS.  
 
-PYTHON	= python
-#CONFIG_ARGS = --with-pcap=$(HOME)/build/libpcap-0.8.3
+PYTHON	= python2.7    #
+CYTHON  = cython-2.7   # These versions are set for Mac OS Only
 
-# PYTHON = C:\\Python23\\python.exe
-# CONFIG_ARGS = --with-pcap=..\\wpdpack
+#PYTHON	= python
+#CYTHON  = cython
 
-all: pcap.c
-	$(PYTHON) setup.py config $(CONFIG_ARGS)
+all: 
+	$(PYTHON) setup.py config
 	$(PYTHON) setup.py build
 
-pcap.c: pcap.pyx
-	pyrexc pcap.pyx
-
-install:
+install: all
 	$(PYTHON) setup.py install
 
-test:
-	$(PYTHON) test.py
-
-pkg_win32:
-	$(PYTHON) setup.py bdist_wininst
-
-pkg_osx:
-	bdist_mpkg --readme=README --license=LICENSE
+dist:
+	$(PYTHON) setup.py sdist
 
 clean:
 	$(PYTHON) setup.py clean
-	rm -rf build dist
-
-cleandir distclean: clean
-	$(PYTHON) setup.py clean -a
-	rm -f config.h *~
+	rm -rf build dist MANIFEST \
+		pcap.c \
+		bpf.c

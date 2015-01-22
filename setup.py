@@ -1,13 +1,47 @@
 #!/usr/bin/env python
+# Copyright (c) 2005, Neville-Neil Consulting
+# All rights reserved.
 #
-# $Id: setup.py,v 1.14 2005/10/16 23:07:03 dugsong Exp $
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#
+# Redistributions of source code must retain the above copyright notice,
+# this list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
+#
+# Neither the name of Neville-Neil Consulting nor the names of its 
+# contributors may be used to endorse or promote products derived from 
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# File: $Id: setup.py,v 1.4 2006/09/05 07:36:27 gnn Exp $
+#            setup.py,v 1.14 2005/10/16 23:07:03 dugsong Exp $
+#
+# Author: George V. Neville-Neil
+#
+# Description: The setup script for all of the Packet Construction Set
+#
 
-from distutils.core import setup, Extension
+from distutils.core import setup
 from distutils.command import config, clean
-import cPickle, glob, os, sys
-
-pcap_config = {}
-pcap_cache = 'config.pkl'
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
+import glob, os, sys
 
 class config_pcap(config.config):
     description = 'configure pcap paths'
@@ -17,7 +51,7 @@ class config_pcap(config.config):
     def initialize_options(self):
         config.config.initialize_options(self)
         self.dump_source = 0
-        #self.noisy = 0
+        self.noisy = 1
         self.with_pcap = None
 
     def _write_config_h(self, cfg):
@@ -35,6 +69,7 @@ class config_pcap(config.config):
         f = open('config.h', 'w')
         for k, v in d.iteritems():
             f.write('#define %s %s\n' % (k, v))
+        f.close()
     
     def _pcap_config(self, dirs=[ None ]):
         cfg = {}
@@ -42,7 +77,7 @@ class config_pcap(config.config):
             dirs = [ '/usr', sys.prefix ] + glob.glob('/opt/libpcap*') + \
                    glob.glob('../libpcap*') + glob.glob('../wpdpack*')
         for d in dirs:
-            for sd in ('include', 'include/pcap', ''):
+            for sd in ('include/pcap', 'include', ''):
                 incdirs = [ os.path.join(d, sd) ]
                 if os.path.exists(os.path.join(d, sd, 'pcap.h')):
                     cfg['include_dirs'] = [ os.path.join(d, sd) ]
@@ -63,40 +98,35 @@ class config_pcap(config.config):
         raise "couldn't find pcap build or installation directory"
     
     def run(self):
-        #config.log.set_verbosity(0)
-        cPickle.dump(self._pcap_config([ self.with_pcap ]),
-                     open(pcap_cache, 'wb'))
-        self.temp_files.append(pcap_cache)
+        self._pcap_config([ self.with_pcap ])
 
-class clean_pcap(clean.clean):
-    def run(self):
-        clean.clean.run(self)
-        if self.all and os.path.exists(pcap_cache):
-            print "removing '%s'" % pcap_cache
-            os.unlink(pcap_cache)
-
-if len(sys.argv) > 1 and sys.argv[1] == 'build':
-    try:
-        pcap_config = cPickle.load(open(pcap_cache))
-    except IOError:
-        print >>sys.stderr, 'run "%s config" first!' % sys.argv[0]
-        sys.exit(1)
+# XXX The Pyrex Distutils extension is currently unable to propagate
+# dependencies on *.pxd files. If you change them you SHOULD rebuild from
+# scratch to be sure dependencies are not stale.
 
 pcap = Extension(name='pcap',
-                 sources=[ 'pcap.c', 'pcap_ex.c' ],
-                 include_dirs=pcap_config.get('include_dirs', ''),
-                 library_dirs=pcap_config.get('library_dirs', ''),
-                 libraries=pcap_config.get('libraries', ''),
-                 extra_compile_args=pcap_config.get('extra_compile_args', ''))
+                 sources=[ 'pcap.pyx', 'pcap_ex.c' ],
+                 include_dirs=['/usr/include/pcap', '.'],
+                 library_dirs=['/usr/lib'],
+                 libraries=['pcap']
+	)
 
-pcap_cmds = { 'config':config_pcap, 'clean':clean_pcap }
+bpf = Extension(name='bpf',
+                 sources=[ 'bpf.pyx' ],
+                 include_dirs=['/usr/include/pcap'],
+                 library_dirs=['/usr/lib'],
+                 libraries=['pcap']
+	)
 
-setup(name='py-pypcap',
-      version='1.1.2',
-      author='Dug Song',
-      author_email='dugsong@monkey.org',
-      url='http://monkey.org/~dugsong/pypcap/',
-      description='packet capture library',
-      cmdclass=pcap_cmds,
-      ext_modules = [ pcap ])
+pcs_cmds = { 'config': config_pcap, 'build_ext':build_ext }
+
+setup(name='pcs',
+      version='0.7',
+      description='Packet Construction Set',
+      author='George V. Neville-Neil',
+      author_email='gnn@neville-neil.com',
+      url='http://pcs.sf.net',
+      cmdclass=pcs_cmds,
+      ext_modules = [ bpf, pcap, ],
+      )
 
