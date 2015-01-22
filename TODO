@@ -1,4 +1,4 @@
-TODO for PCS
+TODO for fasguard-pcap
 
 *) Come up with a fix for BPF loopback injection on FreeBSD and push the
    fix upstream.

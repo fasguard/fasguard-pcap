@@ -9,10 +9,10 @@ This module provides utilities for working with BPF programs.
 """
 
 __author__ = 'Bruce M. Simpson <bms@incunabulum.net>'
-__maintainer__ = 'Bruce M. Simpson <bms@incunabulum.net>'
+__maintainer__ = 'BBN FASGuard team <fasguard@bbn.com>'
 __copyright__ = 'Copyright (c) 2008 Bruce M. Simpson'
 __license__ = 'BSD license'
-__url__ = 'http://pcs.sf.net'
+__url__ = 'https://fasguard.github.io/'
 __version__ = '1.0'
 __revison__ = '0'
 

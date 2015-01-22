@@ -1,8 +1,8 @@
-Installation Instructions for Packet Construction Set (PCS)
+Installation Instructions for fasguard-pcap
 
-PCS follows the normal Python conventions for building and installing
-and there is very little, if any, magic.  To install the library and
-the associated packet classes into your system do:
+fasguard-pcap follows the normal Python conventions for building and
+installing and there is very little, if any, magic.  To install the
+library and the associated packet classes into your system do:
 
 > python setup.py config <return>
 > python setup.py install <return>

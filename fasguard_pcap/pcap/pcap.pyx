@@ -11,10 +11,10 @@ accessible through this mechanism.
 """
 
 __author__ = 'Dug Song <dugsong@monkey.org>'
-__maintainer__ = 'George Neville-Neil <gnn@neville-neil.com>'
+__maintainer__ = 'BBN FASGuard team <fasguard@bbn.com>'
 __copyright__ = 'Copyright (c) 2004 Dug Song'
 __license__ = 'BSD license'
-__url__ = 'http://pcs.sf.net'
+__url__ = 'https://fasguard.github.io/'
 __version__ = '1.1'
 __revison__ = '2'
 
@@ -29,12 +29,12 @@ cdef extern from "Python.h":
     void   Py_BEGIN_ALLOW_THREADS()
     void   Py_END_ALLOW_THREADS()
 
-cimport bpf
-import bpf
+cimport fasguard_pcap.bpf
+import fasguard_pcap.bpf
 
-from bpf cimport bpf_insn
-from bpf cimport bpf_program
-from bpf cimport bpf_timeval
+from fasguard_pcap.bpf cimport bpf_insn
+from fasguard_pcap.bpf cimport bpf_program
+from fasguard_pcap.bpf cimport bpf_timeval
 
 cdef extern from "pcap.h":
     struct pcap_stat:
@@ -159,7 +159,7 @@ def compile(char *str, int snaplen=65536, int dlt=DLT_RAW, int optimize=1,
         raise OSError
     # Python-ize the bpf_program. Note that this simply wraps the buffer
     # which pcap just allocated in the C library heap.
-    pb = bpf.progbuf(<object> &prog, None)
+    pb = fasguard_pcap.bpf.progbuf(<object> &prog, None)
     program = pb.__program__()
     return program
 
@@ -274,12 +274,12 @@ cdef class pcap:
         cdef object pbp
         cdef bpf_program *bp
         #cdef int i
-        if not isinstance(bpfprogram, bpf.program):
+        if not isinstance(bpfprogram, fasguard_pcap.bpf.program):
             raise ValueError, ""
         # cast to temporary required.
-        pbp = bpf.program.__progbuf__(bpfprogram)
+        pbp = fasguard_pcap.bpf.program.__progbuf__(bpfprogram)
         #printf("%p\n", <void *>pbp)
-        bp = bpf.progbuf.__bpf_program__(pbp)
+        bp = fasguard_pcap.bpf.progbuf.__bpf_program__(pbp)
         #printf("%p: %d %p\n", <void *>bp, bp[0].bf_len, <void  *>bp[0].bf_insns)
         #for 0 <= i < bp[0].bf_len:
         #    printf("%d %x\n", i, bp[0].bf_insns[i].code)
@@ -292,7 +292,7 @@ cdef class pcap:
         cdef bpf_program fcode
         if pcap_compile(self.__pcap, &fcode, value, optimize, netmask) < 0:
             raise OSError, pcap_geterr(self.__pcap)
-        pb = bpf.progbuf(<object>&fcode, None)
+        pb = fasguard_pcap.bpf.progbuf(<object>&fcode, None)
         program = pb.__program__()
         return program
 

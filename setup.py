@@ -34,7 +34,7 @@
 #
 # Author: George V. Neville-Neil
 #
-# Description: The setup script for all of the Packet Construction Set
+# Description: The setup script for all of fasguard-pcap
 #
 
 from distutils.core import setup
@@ -68,7 +68,7 @@ class config_pcap(config.config):
             d['HAVE_PCAP_COMPILE_NOPCAP'] = 1
         if buf.find('pcap_setnonblock(') != -1:
             d['HAVE_PCAP_SETNONBLOCK'] = 1
-        f = open('pcs/pcap/config.h', 'w')
+        f = open('fasguard_pcap/pcap/config.h', 'w')
         for k, v in d.iteritems():
             f.write('#define %s %s\n' % (k, v))
         f.close()
@@ -110,30 +110,31 @@ class config_pcap(config.config):
 # dependencies on *.pxd files. If you change them you SHOULD rebuild from
 # scratch to be sure dependencies are not stale.
 
-pcap = Extension(name='pcs.pcap',
-                 sources=[ 'pcs/pcap/pcap.pyx', 'pcs/pcap/pcap_ex.c' ],
-                 include_dirs=['/usr/include/pcap', './pcs/bpf/', '.'],
+pcap = Extension(name='fasguard_pcap.pcap',
+                 sources=[ 'fasguard_pcap/pcap/pcap.pyx',
+                           'fasguard_pcap/pcap/pcap_ex.c' ],
+                 include_dirs=['/usr/include/pcap', './fasguard_pcap/bpf/', '.'],
                  library_dirs=['/usr/lib'],
                  libraries=['pcap']
 	)
 
-bpf = Extension(name='bpf',
-                 sources=[ 'pcs/bpf/bpf.pyx' ],
+bpf = Extension(name='fasguard_pcap.bpf',
+                 sources=[ 'fasguard_pcap/bpf/bpf.pyx' ],
                  include_dirs=['/usr/include/pcap'],
                  library_dirs=['/usr/lib'],
                  libraries=['pcap']
 	)
 
-pcs_cmds = { 'config': config_pcap, 'build_ext':build_ext }
+fasguard_pcap_cmds = { 'config': config_pcap, 'build_ext':build_ext }
 
-setup(name='pcs',
-      version='0.7',
-      description='Packet Construction Set',
-      author='George V. Neville-Neil',
-      author_email='gnn@neville-neil.com',
-      url='http://pcs.sf.net',
-      packages = ['pcs'],
-      cmdclass=pcs_cmds,
+setup(name='fasguard-pcap',
+      version='0.1',
+      description='libpcap support for the FASGuard project',
+      author='BBN FASGuard team',
+      author_email='fasguard@bbn.com',
+      url='https://fasguard.github.io/',
+      packages = ['fasguard_pcap'],
+      cmdclass=fasguard_pcap_cmds,
       ext_modules = [ bpf, pcap, ],
       )
 

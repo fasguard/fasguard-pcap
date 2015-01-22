@@ -1,7 +1,7 @@
 #
 # Author: George V. Neville-Neil
 #
-# Makefile for building distributions of PCS.  
+# Makefile for building distributions of fasguard-pcap.
 
 PYTHON	= python2.7    #
 CYTHON  = cython-2.7   # These versions are set for Mac OS Only
@@ -22,5 +22,5 @@ dist:
 clean:
 	$(PYTHON) setup.py clean
 	rm -rf build dist MANIFEST \
-		pcs/pcap/pcap.c \
-		pcs/bpf/bpf.c
+		fasguard_pcap/pcap/pcap.c \
+		fasguard_pcap/bpf/bpf.c
