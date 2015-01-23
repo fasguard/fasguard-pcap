@@ -55,7 +55,7 @@ class config_pcap(config.config):
         self.with_pcap = None
 
     def _write_config_h(self, cfg):
-        # XXX - write out config.h for pcap_ex.c
+        # XXX - write out pcap_config.h for pcap_ex.c
         d = {}
         if os.path.exists(os.path.join(cfg['include_dirs'][0], 'pcap-int.h')):
             d['HAVE_PCAP_INT_H'] = 1
@@ -68,7 +68,7 @@ class config_pcap(config.config):
             d['HAVE_PCAP_COMPILE_NOPCAP'] = 1
         if buf.find('pcap_setnonblock(') != -1:
             d['HAVE_PCAP_SETNONBLOCK'] = 1
-        f = open('fasguard_pcap/pcap/config.h', 'w')
+        f = open('fasguard_pcap/pcap_config.h', 'w')
         for k, v in d.iteritems():
             f.write('#define %s %s\n' % (k, v))
         f.close()
@@ -111,15 +111,14 @@ class config_pcap(config.config):
 # scratch to be sure dependencies are not stale.
 
 pcap = Extension(name='fasguard_pcap.pcap',
-                 sources=[ 'fasguard_pcap/pcap/pcap.pyx',
-                           'fasguard_pcap/pcap/pcap_ex.c' ],
-                 include_dirs=['/usr/include/pcap', './fasguard_pcap/bpf/', '.'],
+                 sources=[ 'fasguard_pcap/pcap.pyx', 'fasguard_pcap/pcap_ex.c' ],
+                 include_dirs=['/usr/include/pcap', './fasguard_pcap', '.'],
                  library_dirs=['/usr/lib'],
                  libraries=['pcap']
 	)
 
 bpf = Extension(name='fasguard_pcap.bpf',
-                 sources=[ 'fasguard_pcap/bpf/bpf.pyx' ],
+                 sources=[ 'fasguard_pcap/bpf.pyx' ],
                  include_dirs=['/usr/include/pcap'],
                  library_dirs=['/usr/lib'],
                  libraries=['pcap']

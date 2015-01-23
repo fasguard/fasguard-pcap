@@ -9,8 +9,8 @@ fasguard-pcap without performing a full installation.
 
 Note: Make sure that you do not try to import fasguard_pcap.pcap while
 you are in the top level of this tree, otherwise the Python
-interpreter will match the fasguard_pcap/pcap directory instead of
-pcap.so.
+interpreter will search the local fasguard_pcap directory instead of
+the directory containing the compiled module.
 
 An ImportError exception will be raised, but it won't tell you that you're
 trying to import a directory. This happens even if PYTHONPATH is set

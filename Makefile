@@ -22,5 +22,5 @@ dist:
 clean:
 	$(PYTHON) setup.py clean
 	rm -rf build dist MANIFEST \
-		fasguard_pcap/pcap/pcap.c \
-		fasguard_pcap/bpf/bpf.c
+		fasguard_pcap/pcap.c \
+		fasguard_pcap/bpf.c

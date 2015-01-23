@@ -20,7 +20,7 @@
 #endif
 #include "pcap_ex.h"
 
-#include "config.h"
+#include "pcap_config.h"
 
 /* XXX - hack around older Python versions */
 #include "patchlevel.h"
