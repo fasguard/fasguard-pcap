@@ -112,7 +112,6 @@ class config_pcap(config.config):
 
 pcap = Extension(name='fasguard_pcap.pcap',
                  sources=[ 'fasguard_pcap/pcap.pyx', 'fasguard_pcap/pcap_ex.c' ],
-                 include_dirs=['./fasguard_pcap', '.'],
                  libraries=['pcap']
 	)
 
