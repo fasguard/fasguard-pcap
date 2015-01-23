@@ -94,7 +94,6 @@ cdef extern from "pcap_ex.h":
 cdef extern from *:
     void  free(void *ptr)
     char *strdup(char *src)
-    int   printf(char *, ...)
 
 cdef struct pcap_handler_ctx:
     void *callback
@@ -264,7 +263,6 @@ cdef class pcap:
         self.__filter = strdup(value)
         if pcap_compile(self.__pcap, &fcode, self.__filter, optimize, 0) < 0:
             raise OSError, pcap_geterr(self.__pcap)
-        #printf("%p: %d %p\n", <void *>&fcode, fcode.bf_len, <void  *>fcode.bf_insns)
         if pcap_setfilter(self.__pcap, &fcode) < 0:
             raise OSError, pcap_geterr(self.__pcap)
         pcap_freecode(&fcode)
@@ -278,11 +276,7 @@ cdef class pcap:
             raise ValueError, ""
         # cast to temporary required.
         pbp = fasguard_pcap.bpf.program.__progbuf__(bpfprogram)
-        #printf("%p\n", <void *>pbp)
         bp = fasguard_pcap.bpf.progbuf.__bpf_program__(pbp)
-        #printf("%p: %d %p\n", <void *>bp, bp[0].bf_len, <void  *>bp[0].bf_insns)
-        #for 0 <= i < bp[0].bf_len:
-        #    printf("%d %x\n", i, bp[0].bf_insns[i].code)
         if pcap_setfilter(self.__pcap, bp) < 0:
             raise OSError, pcap_geterr(self.__pcap)
 

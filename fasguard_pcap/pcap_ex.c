@@ -15,9 +15,6 @@
 #endif
 
 #include <pcap/pcap.h>
-#ifdef HAVE_PCAP_INT_H
-# include <pcap-int.h>
-#endif
 #include "pcap_ex.h"
 
 #include "pcap_config.h"
@@ -117,10 +114,6 @@ pcap_ex_lookupdev(char *ebuf)
 	for (i = 0; i < ipaddrs->dwNumEntries; i++) {
 		if (ipaddrs->table[i].dwAddr != 0 &&
 		    ipaddrs->table[i].dwAddr != 0x100007f
-#if 0
-		    /* XXX -no wType/MIB_IPADDR_PRIMARY in w32api/iprtrmib.h */
-		    && ipaddrs->table[i].unused2 & 0x01
-#endif
 		    ) {
 			outip = ipaddrs->table[i].dwAddr;
 			break;
@@ -153,24 +146,6 @@ pcap_ex_lookupdev(char *ebuf)
 #endif
 }
 
-int
-pcap_ex_fileno(pcap_t *pcap)
-{
-#ifdef _WIN32
-	/* XXX - how to handle savefiles? */
-	return ((int)pcap_getevent(pcap));
-#else
-# ifdef HAVE_PCAP_FILE
-	FILE *f = pcap_file(pcap);
-# else
-	FILE *f = pcap->sf.rfile;
-# endif
-	if (f != NULL)
-		return (fileno(f));
-	return (pcap_fileno(pcap));
-#endif /* !_WIN32 */
-}
-
 static int __pcap_ex_gotsig;
 
 #ifdef _WIN32
@@ -195,32 +170,7 @@ pcap_ex_setup(pcap_t *pcap)
 #ifdef _WIN32
 	SetConsoleCtrlHandler(__pcap_ex_ctrl, TRUE);
 #else
-#if 0
-	int fd, n;
-	
-	fd = pcap_fileno(pcap);
-	n = fcntl(fd, F_GETFL, 0) | O_NONBLOCK;
-	fcntl(fd, F_SETFL, n);
-#endif
 	signal(SIGINT, __pcap_ex_signal);
-#endif
-}
-
-void
-pcap_ex_setnonblock(pcap_t *pcap, int nonblock, char *ebuf)
-{
-#ifdef HAVE_PCAP_SETNONBLOCK
-	pcap_setnonblock(pcap, nonblock, ebuf);
-#endif
-}
-
-int
-pcap_ex_getnonblock(pcap_t *pcap, char *ebuf)
-{
-#ifdef HAVE_PCAP_SETNONBLOCK
-	return (pcap_getnonblock(pcap, ebuf));
-#else
-	return (0);
 #endif
 }
 
@@ -266,41 +216,5 @@ pcap_ex_next(pcap_t *pcap, struct pcap_pkthdr **hdr, u_char **pkt)
 	*hdr = &__hdr;
 	
 	return (1);
-#endif
-}
-
-int
-pcap_ex_compile_nopcap(int snaplen, int dlt, struct bpf_program *fp, char *str,
-    int optimize, unsigned int netmask)
-{
-#ifdef HAVE_PCAP_COMPILE_NOPCAP
-	return (pcap_compile_nopcap(snaplen, dlt, fp, str, optimize, netmask));
-#else
-	FILE *f;
-	struct pcap_file_header hdr;
-	pcap_t *pc;
-	char path[] = "/tmp/.pypcapXXXXXX.pcap";
-	char ebuf[PCAP_ERRBUF_SIZE];
-	int ret = -1;
-	
-	mktemp(path);
-	if ((f = fopen(path, "w")) != NULL) {
-		hdr.magic = 0xa1b2c3d4;
-		hdr.version_major = PCAP_VERSION_MAJOR;
-		hdr.version_minor = PCAP_VERSION_MINOR;
-		hdr.thiszone = 0;
-		hdr.snaplen = snaplen;
-		hdr.sigfigs = 0;
-		hdr.linktype = dlt;
-		fwrite(&hdr, sizeof(hdr), 1, f);
-		fclose(f);
-	
-		if ((pc = pcap_open_offline(path, ebuf)) != NULL) {
-			ret = pcap_compile(pc, fp, str, optimize, netmask);
-			pcap_close(pc);
-		}
-		unlink(path);
-	}
-	return (ret);
 #endif
 }

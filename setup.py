@@ -57,17 +57,11 @@ class config_pcap(config.config):
     def _write_config_h(self, cfg):
         # XXX - write out pcap_config.h for pcap_ex.c
         d = {}
-        if os.path.exists(os.path.join(cfg['include_dirs'][0], 'pcap-int.h')):
-            d['HAVE_PCAP_INT_H'] = 1
         buf = open(os.path.join(cfg['include_dirs'][0], 'pcap.h')).read()
         if os.path.exists(os.path.join(cfg['include_dirs'][0], 'pcap', 'pcap.h')):
             buf += open(os.path.join(cfg['include_dirs'][0], 'pcap', 'pcap.h')).read()
         if buf.find('pcap_file(') != -1:
             d['HAVE_PCAP_FILE'] = 1
-        if buf.find('pcap_compile_nopcap(') != -1:
-            d['HAVE_PCAP_COMPILE_NOPCAP'] = 1
-        if buf.find('pcap_setnonblock(') != -1:
-            d['HAVE_PCAP_SETNONBLOCK'] = 1
         f = open('fasguard_pcap/pcap_config.h', 'w')
         for k, v in d.iteritems():
             f.write('#define %s %s\n' % (k, v))
