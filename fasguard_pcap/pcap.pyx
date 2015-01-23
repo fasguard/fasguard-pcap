@@ -24,10 +24,6 @@ import time
 
 cdef extern from "Python.h":
     object PyBuffer_FromMemory(char *s, int len)
-    int    PyGILState_Ensure()
-    void   PyGILState_Release(int gil)
-    void   Py_BEGIN_ALLOW_THREADS()
-    void   Py_END_ALLOW_THREADS()
 
 cimport fasguard_pcap.bpf
 import fasguard_pcap.bpf
@@ -87,7 +83,7 @@ cdef extern from "pcap_ex.h":
     int     pcap_ex_immediate(pcap_t *p)
     char   *pcap_ex_name(char *name)
     void    pcap_ex_setup(pcap_t *p)
-    int     pcap_ex_next(pcap_t *p, pcap_pkthdr **hdr, char **pkt)
+    int     pcap_ex_next(pcap_t *p, pcap_pkthdr **hdr, char **pkt) nogil
     char   *pcap_ex_lookupdev(char *errbuf)
 
 # XXX Lacks size_t; known Pyrex limitation
@@ -100,18 +96,15 @@ cdef struct pcap_handler_ctx:
     void *args
     int   got_exc
 
-cdef void __pcap_handler(void *arg, pcap_pkthdr *hdr, char *pkt):
+cdef void __pcap_handler(void *arg, pcap_pkthdr *hdr, char *pkt) with gil:
     cdef pcap_handler_ctx *ctx
-    cdef int gil
     ctx = <pcap_handler_ctx *>arg
-    gil = PyGILState_Ensure()
     try:
         (<object>ctx.callback)(hdr.ts.tv_sec + (hdr.ts.tv_usec/1000000.0),
                                PyBuffer_FromMemory(pkt, hdr.caplen),
                                *(<object>ctx.args))
     except:
         ctx.got_exc = 1
-    PyGILState_Release(gil)
 
 PCAP_D_INOUT = 0
 PCAP_D_IN = 1
@@ -371,9 +364,8 @@ cdef class pcap:
         cdef int n
         pcap_ex_setup(self.__pcap)
         while 1:
-            Py_BEGIN_ALLOW_THREADS
-            n = pcap_ex_next(self.__pcap, &hdr, &pkt)
-            Py_END_ALLOW_THREADS
+            with nogil:
+                n = pcap_ex_next(self.__pcap, &hdr, &pkt)
             if n == 1:
                 callback(hdr.ts.tv_sec + (hdr.ts.tv_usec / 1000000.0),
                          PyBuffer_FromMemory(pkt, hdr.caplen), *args)
@@ -453,9 +445,8 @@ cdef class pcap:
         cdef char *pkt
         cdef int n
         while 1:
-            Py_BEGIN_ALLOW_THREADS
-            n = pcap_ex_next(self.__pcap, &hdr, &pkt)
-            Py_END_ALLOW_THREADS
+            with nogil:
+                n = pcap_ex_next(self.__pcap, &hdr, &pkt)
             if n == 1:
                 return (hdr.ts.tv_sec + (hdr.ts.tv_usec / 1000000.0),
                         PyBuffer_FromMemory(pkt, hdr.caplen))
