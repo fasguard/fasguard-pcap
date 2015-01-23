@@ -21,7 +21,8 @@ import calendar
 import time
 
 cdef extern from "pcap/pcap.h":
-    int     bpf_filter(bpf_insn *insns, char *buf, int len, int caplen)
+    int     bpf_filter(bpf_insn *insns, const unsigned char *buf, int len,
+                       int caplen)
     int     bpf_validate(bpf_insn *insns, int len)
     char   *bpf_image(bpf_insn *insns, int n)
 
@@ -400,7 +401,7 @@ cdef class progbuf:
         """Return boolean True if BPF program is valid."""
         return bool(bpf_validate(self.bp.bf_insns, self.bp.bf_len) != 0)
 
-    def filter(self, char *buf, unsigned int buflen):
+    def filter(self, const unsigned char *buf, unsigned int buflen):
         """Return boolean match for buf against our filter."""
         return bool(bpf_filter(self.bp.bf_insns, buf, buflen, buflen) != 0)
 

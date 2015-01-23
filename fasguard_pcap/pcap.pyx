@@ -18,19 +18,19 @@ __url__ = 'https://fasguard.github.io/'
 __version__ = '1.1'
 __revison__ = '2'
 
+from cpython.ref cimport PyObject
+from posix.time cimport timeval
 import sys
 import calendar
 import time
 
-cdef extern from "Python.h":
-    object PyBuffer_FromMemory(char *s, int len)
+from cpython.oldbuffer cimport PyBuffer_FromMemory
 
 cimport fasguard_pcap.bpf
 import fasguard_pcap.bpf
 
 from fasguard_pcap.bpf cimport bpf_insn
 from fasguard_pcap.bpf cimport bpf_program
-from fasguard_pcap.bpf cimport bpf_timeval
 
 cdef extern from "pcap/pcap.h":
     struct pcap_stat:
@@ -38,7 +38,7 @@ cdef extern from "pcap/pcap.h":
         unsigned int ps_drop
         unsigned int ps_ifdrop
     struct pcap_pkthdr:
-        bpf_timeval ts
+        timeval ts
         unsigned int caplen
         unsigned int len
     ctypedef struct pcap_t:
@@ -48,60 +48,64 @@ cdef extern from "pcap/pcap.h":
     ctypedef enum pcap_direction_t:
         __xxx
 
-ctypedef void (*pcap_handler)(void *arg, pcap_pkthdr *hdr, char *pkt)
+ctypedef void (*pcap_handler)(unsigned char *arg, const pcap_pkthdr *hdr,
+                              const unsigned char *pkt)
 
 cdef extern from "pcap/pcap.h":
-    pcap_t *pcap_open_live(char *device, int snaplen, int promisc,
+    pcap_t *pcap_open_live(const char *device, int snaplen, int promisc,
                            int to_ms, char *errbuf)
     pcap_t *pcap_open_dead(int linktype, int snaplen)
     pcap_t *pcap_open_offline(char *fname, char *errbuf)
-    pcap_dumper_t *pcap_dump_open(pcap_t *p, char *fname)
+    pcap_dumper_t *pcap_dump_open(pcap_t *p, const char *fname)
     void pcap_dump_close(pcap_dumper_t *p)
-    int     pcap_compile(pcap_t *p, bpf_program *fp, char *str, int optimize,
-                         unsigned int netmask)
+    int     pcap_compile(pcap_t *p, bpf_program *fp, const char *str,
+                         int optimize, unsigned int netmask)
     int     pcap_setfilter(pcap_t *p, bpf_program *fp)
     void    pcap_freecode(bpf_program *fp)
     int     pcap_setdirection(pcap_t *p, pcap_direction_t d)
     int     pcap_dispatch(pcap_t *p, int cnt, pcap_handler callback,
                           unsigned char *arg)
-    unsigned char *pcap_next(pcap_t *p, pcap_pkthdr *hdr)
+    const unsigned char *pcap_next(pcap_t *p, pcap_pkthdr *hdr)
     int     pcap_datalink(pcap_t *p)
     int     pcap_snapshot(pcap_t *p)
     int     pcap_stats(pcap_t *p, pcap_stat *ps)
     char   *pcap_geterr(pcap_t *p)
     void    pcap_close(pcap_t *p)
-    int     pcap_inject(pcap_t *p, char *buf, int size)
-    void    pcap_dump(pcap_dumper_t *p, pcap_pkthdr *h, char *sp)
+    int     pcap_inject(pcap_t *p, const void *buf, size_t size)
+    void    pcap_dump(unsigned char *p, const pcap_pkthdr *h,
+                      const unsigned char *sp)
     int     pcap_get_selectable_fd(pcap_t *)
     int     pcap_setnonblock(pcap_t *p, int nonblock, char *errbuf)
     int     pcap_getnonblock(pcap_t *p, char *errbuf)
     char   *pcap_lookupdev(char *errbuf)
     int     pcap_compile_nopcap(int snaplen, int dlt, bpf_program *fp,
-                                char *str, int optimize, unsigned int netmask)
+                                const char *str, int optimize,
+                                unsigned int netmask)
 
 cdef extern from "pcap_ex.h":
     int     pcap_ex_immediate(pcap_t *p)
     char   *pcap_ex_name(char *name)
     void    pcap_ex_setup(pcap_t *p)
-    int     pcap_ex_next(pcap_t *p, pcap_pkthdr **hdr, char **pkt) nogil
+    int     pcap_ex_next(pcap_t *p, pcap_pkthdr **hdr,
+                         unsigned char **pkt) nogil
     char   *pcap_ex_lookupdev(char *errbuf)
 
-# XXX Lacks size_t; known Pyrex limitation
-cdef extern from *:
-    void  free(void *ptr)
-    char *strdup(char *src)
+from libc.stdlib cimport free
+from libc.string cimport strdup
 
 cdef struct pcap_handler_ctx:
-    void *callback
-    void *args
+    PyObject *callback
+    PyObject *args
     int   got_exc
 
-cdef void __pcap_handler(void *arg, pcap_pkthdr *hdr, char *pkt) with gil:
+cdef void __pcap_handler(unsigned char *arg, const pcap_pkthdr *hdr,
+                         const unsigned char *pkt) with gil:
     cdef pcap_handler_ctx *ctx
     ctx = <pcap_handler_ctx *>arg
     try:
         (<object>ctx.callback)(hdr.ts.tv_sec + (hdr.ts.tv_usec/1000000.0),
-                               PyBuffer_FromMemory(pkt, hdr.caplen),
+                               PyBuffer_FromMemory(<void *>pkt,
+                                                   hdr.caplen),
                                *(<object>ctx.args))
     except:
         ctx.got_exc = 1
@@ -308,8 +312,8 @@ cdef class pcap:
     def next(self):
         """Return the next (timestamp, packet) tuple, or None on error."""
         cdef pcap_pkthdr hdr
-        cdef char *pkt
-        pkt = <char *>pcap_next(self.__pcap, &hdr)
+        cdef const unsigned char *pkt
+        pkt = pcap_next(self.__pcap, &hdr)
         if not pkt:
             return None
         return (hdr.ts.tv_sec + (hdr.ts.tv_usec / 1000000.0),
@@ -340,8 +344,8 @@ cdef class pcap:
         cdef pcap_handler_ctx ctx
         cdef int n
 
-        ctx.callback = <void *>callback
-        ctx.args = <void *>args
+        ctx.callback = <PyObject *>callback
+        ctx.args = <PyObject *>args
         ctx.got_exc = 0
         n = pcap_dispatch(self.__pcap, cnt, __pcap_handler,
                           <unsigned char *>&ctx)
@@ -360,7 +364,7 @@ cdef class pcap:
         *args    -- optional arguments passed to callback on execution
         """
         cdef pcap_pkthdr *hdr
-        cdef char *pkt
+        cdef unsigned char *pkt
         cdef int n
         pcap_ex_setup(self.__pcap)
         while 1:
@@ -414,7 +418,7 @@ cdef class pcap:
             hdr.caplen = len(packet)
             hdr.len = len(packet)
 
-        pcap_dump(self.__dumper, &hdr, packet)
+        pcap_dump(<unsigned char *>self.__dumper, &hdr, packet)
 
     def dump_close(self):
         pcap_dump_close(self.__dumper)
@@ -442,7 +446,7 @@ cdef class pcap:
 
     def __next__(self):
         cdef pcap_pkthdr *hdr
-        cdef char *pkt
+        cdef unsigned char *pkt
         cdef int n
         while 1:
             with nogil:
