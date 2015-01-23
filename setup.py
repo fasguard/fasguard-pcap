@@ -38,17 +38,8 @@
 #
 
 from distutils.core import setup
-from distutils.command import config
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
-
-class config_pcap(config.config):
-    description = 'configure pcap paths'
-    
-    def initialize_options(self):
-        config.config.initialize_options(self)
-        self.dump_source = 0
-        self.noisy = 1
 
 # XXX The Pyrex Distutils extension is currently unable to propagate
 # dependencies on *.pxd files. If you change them you SHOULD rebuild from
@@ -64,7 +55,7 @@ bpf = Extension(name='fasguard_pcap.bpf',
                  libraries=['pcap']
 	)
 
-fasguard_pcap_cmds = { 'config': config_pcap, 'build_ext':build_ext }
+fasguard_pcap_cmds = { 'build_ext':build_ext }
 
 setup(name='fasguard-pcap',
       version='0.1',
