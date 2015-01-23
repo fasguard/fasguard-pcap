@@ -36,7 +36,7 @@ from fasguard_pcap.bpf cimport bpf_insn
 from fasguard_pcap.bpf cimport bpf_program
 from fasguard_pcap.bpf cimport bpf_timeval
 
-cdef extern from "pcap.h":
+cdef extern from "pcap/pcap.h":
     struct pcap_stat:
         unsigned int ps_recv
         unsigned int ps_drop
@@ -54,7 +54,7 @@ cdef extern from "pcap.h":
 
 ctypedef void (*pcap_handler)(void *arg, pcap_pkthdr *hdr, char *pkt)
 
-cdef extern from "pcap.h":
+cdef extern from "pcap/pcap.h":
     pcap_t *pcap_open_live(char *device, int snaplen, int promisc,
                            int to_ms, char *errbuf)
     pcap_t *pcap_open_dead(int linktype, int snaplen)

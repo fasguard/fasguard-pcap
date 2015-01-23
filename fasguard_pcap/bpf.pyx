@@ -20,7 +20,7 @@ import sys
 import calendar
 import time
 
-cdef extern from "pcap.h":
+cdef extern from "pcap/pcap.h":
     int     bpf_filter(bpf_insn *insns, char *buf, int len, int caplen)
     int     bpf_validate(bpf_insn *insns, int len)
     char   *bpf_image(bpf_insn *insns, int n)

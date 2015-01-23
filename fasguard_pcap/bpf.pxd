@@ -18,7 +18,7 @@ __revison__ = '0'
 
 import sys
 
-cdef extern from "pcap.h":
+cdef extern from "pcap/pcap.h":
     struct bpf_insn:
         unsigned short code
         unsigned char jt

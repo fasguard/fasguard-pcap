@@ -112,14 +112,14 @@ class config_pcap(config.config):
 
 pcap = Extension(name='fasguard_pcap.pcap',
                  sources=[ 'fasguard_pcap/pcap.pyx', 'fasguard_pcap/pcap_ex.c' ],
-                 include_dirs=['/usr/include/pcap', './fasguard_pcap', '.'],
+                 include_dirs=['/usr/include', './fasguard_pcap', '.'],
                  library_dirs=['/usr/lib'],
                  libraries=['pcap']
 	)
 
 bpf = Extension(name='fasguard_pcap.bpf',
                  sources=[ 'fasguard_pcap/bpf.pyx' ],
-                 include_dirs=['/usr/include/pcap'],
+                 include_dirs=['/usr/include'],
                  library_dirs=['/usr/lib'],
                  libraries=['pcap']
 	)

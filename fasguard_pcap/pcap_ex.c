@@ -14,7 +14,7 @@
 # include <unistd.h>
 #endif
 
-#include <pcap.h>
+#include <pcap/pcap.h>
 #ifdef HAVE_PCAP_INT_H
 # include <pcap-int.h>
 #endif
