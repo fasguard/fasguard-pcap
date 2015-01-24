@@ -45,8 +45,8 @@ from Cython.Distutils import build_ext
 # dependencies on *.pxd files. If you change them you SHOULD rebuild from
 # scratch to be sure dependencies are not stale.
 
-pcap = Extension(name='fasguard_pcap.pcap',
-                 sources=[ 'fasguard_pcap/pcap.pyx', 'fasguard_pcap/pcap_ex.c' ],
+pcap = Extension(name='fasguard_pcap.__init__',
+                 sources=[ 'fasguard_pcap/__init__.pyx', 'fasguard_pcap/pcap_ex.c' ],
                  libraries=['pcap']
 	)
 
