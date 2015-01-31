@@ -18,6 +18,8 @@ __url__ = 'https://fasguard.github.io/'
 __version__ = '1.1'
 __revison__ = '2'
 
+from cpython.buffer cimport PyBUF_SIMPLE, PyBuffer_Release, \
+    PyObject_CheckBuffer, PyObject_GetBuffer
 from cpython.ref cimport PyObject
 from posix.time cimport timeval
 from posix.types cimport suseconds_t, time_t
@@ -25,13 +27,13 @@ import sys
 import calendar
 import time
 
-from cpython.oldbuffer cimport PyBuffer_FromMemory
-
 cimport fasguard_pcap.bpf
 import fasguard_pcap.bpf
 
 from fasguard_pcap.bpf cimport bpf_insn
 from fasguard_pcap.bpf cimport bpf_program
+
+from fasguard_pcap.memorybuffer cimport MemoryBuffer, MemoryBuffer_init
 
 cdef extern from "pcap/pcap.h":
     struct pcap_stat:
@@ -113,12 +115,13 @@ cdef void __pcap_handler(unsigned char *arg, const pcap_pkthdr *hdr_c,
         # until pcap_breakloop() does its thing
         return
     cdef pkthdr hdr
+    cdef MemoryBuffer pkt_mb
     try:
         hdr = pkthdr(hdr_c.ts.tv_sec, hdr_c.ts.tv_usec,
                      hdr_c.caplen, hdr_c.len)
-        ctx.callback(hdr,
-                     PyBuffer_FromMemory(<void *>pkt, hdr.caplen),
-                     *ctx.args)
+        pkt_mb = MemoryBuffer_init(<void *>pkt, hdr.caplen)
+        ctx.callback(hdr, pkt_mb, *ctx.args)
+        pkt_mb.invalidate()
     except:
         assert ctx.exc_info is None
         ctx.exc_info = sys.exc_info()
@@ -355,8 +358,11 @@ cdef class pcap:
             pkt = pcap_next(self.__pcap, &hdr.h)
         if not pkt:
             return None
+        # TODO: figure out a way to mark the memorybuffer as invalid
+        # on the next call to pcap_next_ex(), pcap_next(),
+        # pcap_loop(), or pcap_dispatch()
         return (hdr,
-                PyBuffer_FromMemory(pkt, hdr.caplen))
+                MemoryBuffer_init(<void *>pkt, hdr.caplen))
 
     def __add_pkts(self, ts, pkt, pkts):
         pkts.append((ts, pkt))
@@ -407,14 +413,16 @@ cdef class pcap:
         cdef pkthdr hdr = pkthdr()
         cdef unsigned char *pkt
         cdef int n
+        cdef MemoryBuffer pkt_mb
         with nogil:
             pcap_ex_setup(self.__pcap)
         while 1:
             with nogil:
                 n = pcap_ex_next(self.__pcap, &hdr.h, &pkt)
             if n == 1:
-                callback(hdr,
-                         PyBuffer_FromMemory(pkt, hdr.caplen), *args)
+                pkt_mb = MemoryBuffer_init(pkt, hdr.caplen)
+                callback(hdr, pkt_mb, *args)
+                pkt_mb.invalidate()
             elif n == -1:
                 raise KeyboardInterrupt
             elif n == -2:
@@ -426,7 +434,7 @@ cdef class pcap:
         with nogil:
             pcap_breakloop(self.__pcap)
     
-    def inject(self, packet, len):
+    def inject(self, object packet not None):
         """Inject a packet onto an interface.
         May or may not work depending on platform.
 
@@ -434,11 +442,16 @@ cdef class pcap:
 
         packet -- a pointer to the packet in memory
         """
+        if not PyObject_CheckBuffer(packet):
+            raise TypeError("packet object must follow the buffer protocol")
         cdef int n
-        cdef size_t packet_len = len(packet)
-        cdef const unsigned char *packet_c = packet
-        with nogil:
-            n = pcap_inject(self.__pcap, packet_c, packet_len)
+        cdef Py_buffer view
+        PyObject_GetBuffer(packet, &view, PyBUF_SIMPLE)
+        try:
+            with nogil:
+                n = pcap_inject(self.__pcap, view.buf, view.len)
+        finally:
+            PyBuffer_Release(&view)
         if (n < 0):
             raise OSError, self.geterr()
 
@@ -491,8 +504,11 @@ cdef class pcap:
             with nogil:
                 n = pcap_ex_next(self.__pcap, &hdr.h, &pkt)
             if n == 1:
+                # TODO: figure out a way to mark the memorybuffer as
+                # invalid on the next call to pcap_next_ex(),
+                # pcap_next(), pcap_loop(), or pcap_dispatch()
                 return (hdr,
-                        PyBuffer_FromMemory(pkt, hdr.caplen))
+                        MemoryBuffer_init(pkt, hdr.caplen))
             elif n == -1:
                 raise KeyboardInterrupt
             elif n == -2:
@@ -545,7 +561,7 @@ cdef class dumper:
         if self.d == NULL:
             raise OSError(p.geterr())
 
-    cpdef dump(dumper self, packet, pkthdr header=None):
+    cpdef dump(dumper self, object packet, pkthdr header=None):
         """Dump a packet to a previously opened save file.
 
         Arguments:
@@ -555,15 +571,21 @@ cdef class dumper:
         """
         if self.d == NULL:
             raise OSError("dumper is not open")
+        if not PyObject_CheckBuffer(packet):
+            raise TypeError("packet object must follow the buffer protocol")
 
-        if header is None:
-            header = pkthdr(calendar.timegm(time.gmtime()), 0,
-                            len(packet), len(packet))
-        header.len = len(packet)
-
-        cdef const unsigned char *packet_c = packet
-        with nogil:
-            pcap_dump(<unsigned char *>self.d, &header.h, packet_c)
+        cdef Py_buffer view
+        PyObject_GetBuffer(packet, &view, PyBUF_SIMPLE)
+        try:
+            if header is None:
+                header = pkthdr(calendar.timegm(time.gmtime()), 0,
+                                view.len, view.len)
+            header.len = view.len
+            with nogil:
+                pcap_dump(<unsigned char *>self.d, &header.h,
+                          <const unsigned char *>view.buf)
+        finally:
+            PyBuffer_Release(&view)
 
     cpdef close(dumper self):
         if self.d != NULL:
