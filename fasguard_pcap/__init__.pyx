@@ -222,9 +222,7 @@ cdef class pcap:
             raise OSError, self.__ebuf
                         
         if dumpfile != "":
-            self.__dumper = pcap_dump_open(self.__pcap, dumpfile)
-            if not self.__dumper:
-                raise OSError, self.geterr()
+            self.dump_open(dumpfile)
             
         self.__name = strdup(p)
         self.__filter = strdup("")
@@ -445,6 +443,11 @@ cdef class pcap:
 
     def dump_close(self):
         pcap_dump_close(self.__dumper)
+
+    def dump_open(const char *fname):
+        self.__dumper = pcap_dump_open(self.__pcap, fname)
+        if not self.__dumper:
+            raise OSError, self.geterr()
 
     def close(self):
         if self.__pcap:
