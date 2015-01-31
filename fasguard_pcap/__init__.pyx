@@ -531,6 +531,12 @@ cdef class pcap:
                 raise KeyboardInterrupt
             elif n == -2:
                 raise StopIteration
+
+    def __enter__(pcap self):
+        return self
+
+    def __exit__(pcap self, exc_type, exc_value, traceback):
+        self.close()
     
     def __dealloc__(self):
         self.close()
