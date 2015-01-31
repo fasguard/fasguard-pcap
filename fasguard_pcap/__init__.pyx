@@ -193,8 +193,8 @@ cdef class pcap:
     cdef int __dloff
     cdef pcap_dumper_t *__dumper
 
-    def __init__(self, name=None, snaplen=65535, promisc=True,
-                 timeout_ms=500, immediate=False,
+    def __init__(self, name=None, int snaplen=65535, bint promisc=True,
+                 int timeout_ms=500, immediate=False,
                  dumpfile="", dumptype=None):
         global dltoff
         cdef char *p
@@ -262,7 +262,7 @@ cdef class pcap:
         """Return file descriptor (or Win32 HANDLE) for capture handle."""
         return self.fd
     
-    def setfilter(self, value, optimize=1):
+    def setfilter(self, value, int optimize=1):
         """Set packet capture filter using a filter expression."""
         cdef bpf_program fcode
         free(self.__filter)
@@ -287,7 +287,8 @@ cdef class pcap:
         if pcap_setfilter(self.__pcap, fp) < 0:
             raise OSError, self.geterr()
 
-    def compile(self, value, optimize=True, netmask=0):
+    def compile(self, const char *value, bint optimize=True,
+                unsigned int netmask=0):
         """Compile a filter expression to a BPF program for this pcap.
            Return the filter as a bpf program."""
         cdef bpf_program fcode
@@ -301,12 +302,12 @@ cdef class pcap:
         if pcap_compile(self.__pcap, fp, s, optimize, netmask) < 0:
             raise OSError, self.geterr()
 
-    def setdirection(self, value):
+    def setdirection(self, pcap_direction_t value):
         """Set BPF capture direction."""
         if pcap_setdirection(self.__pcap, value) < 0:
             raise OSError, self.geterr()
 
-    def setnonblock(self, nonblock=True):
+    def setnonblock(self, bint nonblock=True):
         """Set non-blocking capture mode."""
         pcap_setnonblock(self.__pcap, nonblock, self.__ebuf)
     
@@ -342,7 +343,7 @@ cdef class pcap:
         self.dispatch(-1, self.__add_pkts, pkts)
         return pkts
     
-    def dispatch(self, cnt, callback, *args):
+    def dispatch(self, int cnt, callback, *args):
         """Collect and process packets with a user callback,
         return the number of packets processed, or 0 for a savefile.
         
