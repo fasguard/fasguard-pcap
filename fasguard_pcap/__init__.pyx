@@ -271,8 +271,7 @@ cdef class pcap:
         self.__filter = strdup(value)
         if pcap_compile(self.__pcap, &fcode, self.__filter, optimize, 0) < 0:
             raise OSError, self.geterr()
-        if pcap_setfilter(self.__pcap, &fcode) < 0:
-            raise OSError, self.geterr()
+        self.__setfilter(&fcode)
         pcap_freecode(&fcode)
 
     def setbpfprogram(self, object bpfprogram):
@@ -285,7 +284,10 @@ cdef class pcap:
         # cast to temporary required.
         pbp = fasguard_pcap.bpf.program.__progbuf__(bpfprogram)
         bp = fasguard_pcap.bpf.progbuf.__bpf_program__(pbp)
-        if pcap_setfilter(self.__pcap, bp) < 0:
+        self.__setfilter(bp)
+
+    cdef void __setfilter(pcap self, bpf_program *fp):
+        if pcap_setfilter(self.__pcap, fp) < 0:
             raise OSError, self.geterr()
 
     def compile(self, value, optimize=True, netmask=0):
