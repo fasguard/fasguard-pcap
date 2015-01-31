@@ -510,8 +510,10 @@ cdef class pcap:
             raise OSError, self.geterr()
         return (pstat.ps_recv, pstat.ps_drop, pstat.ps_ifdrop)
 
-    cdef void ex_immediate(self):
+    cpdef ex_immediate(self):
         """disable buffering, if possible"""
+        if self.__type != 'live':
+            raise TypeError("immediate only makes sense for live captures")
         cdef int ret
         with nogil:
             ret = pcap_ex_immediate(self.__pcap)
