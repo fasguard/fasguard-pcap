@@ -81,6 +81,7 @@ cdef extern from "pcap/pcap.h":
     int     pcap_compile_nopcap(int snaplen, int dlt, bpf_program *fp,
                                 const char *str, int optimize,
                                 unsigned int netmask)
+    void    pcap_breakloop(pcap_t *p)
 
 cdef extern from "pcap_ex.h":
     int     pcap_ex_immediate(pcap_t *p)
@@ -377,6 +378,12 @@ cdef class pcap:
                 raise KeyboardInterrupt
             elif n == -2:
                 break
+
+    def breakloop(self):
+        """Call pcap_breakloop() to break out of a packet processing loop.
+        """
+        with nogil:
+            pcap_breakloop(self.__pcap)
     
     def inject(self, packet, len):
         """Inject a packet onto an interface.
