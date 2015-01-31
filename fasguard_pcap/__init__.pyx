@@ -171,18 +171,7 @@ def compile(char *str, int snaplen=65536, int dlt=DLT_RAW, int optimize=1,
     return program
 
 cdef class pcap:
-    """pcap(name=None, snaplen=65535, promisc=True, immediate=False) -> packet capture object
-    
-    Open a handle to a packet capture descriptor.
-    
-    Keyword arguments:
-    name      -- name of a network interface or dumpfile to open,
-                 or None to open the first available up interface
-    snaplen   -- maximum number of bytes to capture for each packet
-    promisc   -- boolean to specify promiscuous mode sniffing
-    immediate -- disable buffering, if possible
-    dumpfile  -- name of a dumpfile to open, if necessary
-    dumptype  -- only open a dumpfile and specify its type
+    """Handle to a packet capture descriptor.
 
     Attributes:
         filter
@@ -196,45 +185,57 @@ cdef class pcap:
     cdef char __ebuf[PCAP_ERRBUF_SIZE]
     cdef pcap_dumper_t *__dumper
 
-    def __init__(self, name=None, int snaplen=65535, bint promisc=True,
-                 int timeout_ms=500, immediate=False,
-                 dumpfile="", dumptype=None):
-        cdef bytes p
-        cdef int dumptype_c
+    @staticmethod
+    def open_dead(int linktype, int snaplen):
+        """Open a handle to a packet capture descriptor.
 
-        if dumptype != None:
-            dumptype_c = dumptype
-            try:
-                with nogil:
-                    self.__pcap = pcap_open_dead(dumptype_c, snaplen)
-            except:
-                raise OSError, "Internal error pcap_open_dead."
-            p = dumpfile
-        else:
-            if not name:
-                p = lookupdev()
-            else:
-                p = name
-                    
-            with nogil:
-                self.__pcap = pcap_open_offline(p, self.__ebuf)
-                    
-            if not self.__pcap:
-                with nogil:
-                    self.__pcap = pcap_open_live(pcap_ex_name(p), snaplen,
-                                                 promisc, timeout_ms,
-                                                 self.__ebuf)
-                if self.__pcap != NULL and immediate:
-                    self.ex_immediate()
+        Keyword arguments:
+        linktype  -- link-layer type
+        snaplen   -- maximum number of bytes to capture for each packet
+        """
+        ret = pcap()
+        with nogil:
+            ret.__pcap = pcap_open_dead(linktype, snaplen)
+        if ret.__pcap == NULL:
+            raise OSError("error in pcap_open_dead()")
+        return ret
 
-        if not self.__pcap:
-            raise OSError, self.__ebuf
-                        
-        if dumpfile != "":
-            self.dump_open(dumpfile)
-            
-        self.name = p
-            
+    @staticmethod
+    def open_offline(const char *fname):
+        """Open a handle to a packet capture descriptor.
+
+        Keyword arguments:
+        fname     -- name of a dumpfile to open
+        """
+        ret = pcap()
+        with nogil:
+            ret.__pcap = pcap_open_offline(fname, ret.__ebuf)
+        if ret.__pcap == NULL:
+            raise OSError(ret.__ebuf)
+        ret.name = fname
+        return ret
+
+    @staticmethod
+    def open_live(const char *device, int snaplen=65535,
+                  bint promisc=True, int to_ms=500):
+        """Open a handle to a packet capture descriptor.
+
+        Keyword arguments:
+        device  -- name of a network interface to open, or None to
+                   open the first available up interface
+        snaplen -- maximum number of bytes to capture for each packet
+        promisc -- boolean to specify promiscuous mode sniffing
+        to_ms   -- read timeout in milliseconds
+        """
+        ret = pcap()
+        with nogil:
+            ret.__pcap = pcap_open_live(device, snaplen, promisc, to_ms,
+                                        ret.__ebuf)
+        if ret.__pcap == NULL:
+            raise OSError(ret.__ebuf)
+        ret.name = device
+        return ret
+
     property snaplen:
         """Maximum number of bytes to capture for each packet."""
         def __get__(self):
