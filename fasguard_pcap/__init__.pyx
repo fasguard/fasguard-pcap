@@ -234,7 +234,6 @@ cdef class pcap:
             self.dump_open(dumpfile)
             
         self.name = p
-        self.filter = ""
             
     property snaplen:
         """Maximum number of bytes to capture for each packet."""
