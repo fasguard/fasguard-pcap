@@ -442,9 +442,13 @@ cdef class pcap:
         pcap_dump(<unsigned char *>self.__dumper, &hdr, packet)
 
     def dump_close(self):
-        pcap_dump_close(self.__dumper)
+        if self.__dumper != NULL:
+            pcap_dump_close(self.__dumper)
+            self.__dumper = NULL
 
     def dump_open(const char *fname):
+        if self.__dumper != NULL:
+            raise OSError("dumper already open")
         self.__dumper = pcap_dump_open(self.__pcap, fname)
         if not self.__dumper:
             raise OSError, self.geterr()
