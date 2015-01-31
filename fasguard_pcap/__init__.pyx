@@ -51,7 +51,7 @@ cdef extern from "pcap/pcap.h":
 ctypedef void (*pcap_handler)(unsigned char *arg, const pcap_pkthdr *hdr,
                               const unsigned char *pkt)
 
-cdef extern from "pcap/pcap.h":
+cdef extern from "pcap/pcap.h" nogil:
     pcap_t *pcap_open_live(const char *device, int snaplen, int promisc,
                            int to_ms, char *errbuf)
     pcap_t *pcap_open_dead(int linktype, int snaplen)
@@ -85,12 +85,12 @@ cdef extern from "pcap/pcap.h":
     cdef enum:
         PCAP_ERRBUF_SIZE
 
-cdef extern from "pcap_ex.h":
+cdef extern from "pcap_ex.h" nogil:
     int     pcap_ex_immediate(pcap_t *p)
     char   *pcap_ex_name(char *name)
     void    pcap_ex_setup(pcap_t *p)
     int     pcap_ex_next(pcap_t *p, pcap_pkthdr **hdr,
-                         unsigned char **pkt) nogil
+                         unsigned char **pkt)
     char   *pcap_ex_lookupdev(char *errbuf)
 
 from libc.stdlib cimport free
