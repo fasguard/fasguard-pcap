@@ -20,6 +20,7 @@ __revison__ = '2'
 
 from cpython.ref cimport PyObject
 from posix.time cimport timeval
+from posix.types cimport suseconds_t, time_t
 import sys
 import calendar
 import time
@@ -89,7 +90,7 @@ cdef extern from "pcap_ex.h" nogil:
     int     pcap_ex_immediate(pcap_t *p)
     char   *pcap_ex_name(char *name)
     void    pcap_ex_setup(pcap_t *p)
-    int     pcap_ex_next(pcap_t *p, pcap_pkthdr **hdr,
+    int     pcap_ex_next(pcap_t *p, pcap_pkthdr *hdr,
                          unsigned char **pkt)
     char   *pcap_ex_lookupdev(char *errbuf)
 
@@ -104,15 +105,18 @@ cdef class pcap_handler_ctx:
         self.exc_info = None
         self.p = p
 
-cdef void __pcap_handler(unsigned char *arg, const pcap_pkthdr *hdr,
+cdef void __pcap_handler(unsigned char *arg, const pcap_pkthdr *hdr_c,
                          const unsigned char *pkt) with gil:
     cdef pcap_handler_ctx ctx = <pcap_handler_ctx><PyObject *>arg
     if ctx.exc_info is not None:
         # don't want to risk raising another exception, so we'll wait
         # until pcap_breakloop() does its thing
         return
+    cdef pkthdr hdr
     try:
-        ctx.callback(hdr.ts.tv_sec + (hdr.ts.tv_usec/1000000.0),
+        hdr = pkthdr(hdr_c.ts.tv_sec, hdr_c.ts.tv_usec,
+                     hdr_c.caplen, hdr_c.len)
+        ctx.callback(hdr,
                      PyBuffer_FromMemory(<void *>pkt, hdr.caplen),
                      *ctx.args)
     except:
@@ -344,21 +348,21 @@ cdef class pcap:
         return ret
     
     def next(self):
-        """Return the next (timestamp, packet) tuple, or None on error."""
-        cdef pcap_pkthdr hdr
+        """Return the next (header, packet) tuple, or None on error."""
+        cdef pkthdr hdr = pkthdr()
         cdef const unsigned char *pkt
         with nogil:
-            pkt = pcap_next(self.__pcap, &hdr)
+            pkt = pcap_next(self.__pcap, &hdr.h)
         if not pkt:
             return None
-        return (hdr.ts.tv_sec + (hdr.ts.tv_usec / 1000000.0),
+        return (hdr,
                 PyBuffer_FromMemory(pkt, hdr.caplen))
 
     def __add_pkts(self, ts, pkt, pkts):
         pkts.append((ts, pkt))
     
     def readpkts(self):
-        """Return a list of (timestamp, packet) tuples received in one buffer."""
+        """Return a list of (header, packet) tuples received in one buffer."""
         pkts = []
         self.dispatch(-1, self.__add_pkts, pkts)
         return pkts
@@ -373,7 +377,7 @@ cdef class pcap:
                     or 0 to process all packets until an error occurs,
                     EOF is reached, or the read times out;
                     or -1 to process all packets received in one buffer
-        callback -- function with (timestamp, pkt, *args) prototype
+        callback -- function with (header, pkt, *args) prototype
         *args    -- optional arguments passed to callback on execution
         """
         cdef pcap_handler_ctx ctx = pcap_handler_ctx(callback, args, self)
@@ -397,19 +401,19 @@ cdef class pcap:
         
         Arguments:
 
-        callback -- function with (timestamp, pkt, *args) prototype
+        callback -- function with (header, pkt, *args) prototype
         *args    -- optional arguments passed to callback on execution
         """
-        cdef pcap_pkthdr *hdr
+        cdef pkthdr hdr = pkthdr()
         cdef unsigned char *pkt
         cdef int n
         with nogil:
             pcap_ex_setup(self.__pcap)
         while 1:
             with nogil:
-                n = pcap_ex_next(self.__pcap, &hdr, &pkt)
+                n = pcap_ex_next(self.__pcap, &hdr.h, &pkt)
             if n == 1:
-                callback(hdr.ts.tv_sec + (hdr.ts.tv_usec / 1000000.0),
+                callback(hdr,
                          PyBuffer_FromMemory(pkt, hdr.caplen), *args)
             elif n == -1:
                 raise KeyboardInterrupt
@@ -480,14 +484,14 @@ cdef class pcap:
         return self
 
     def __next__(self):
-        cdef pcap_pkthdr *hdr
+        cdef pkthdr hdr = pkthdr()
         cdef unsigned char *pkt
         cdef int n
         while 1:
             with nogil:
-                n = pcap_ex_next(self.__pcap, &hdr, &pkt)
+                n = pcap_ex_next(self.__pcap, &hdr.h, &pkt)
             if n == 1:
-                return (hdr.ts.tv_sec + (hdr.ts.tv_usec / 1000000.0),
+                return (hdr,
                         PyBuffer_FromMemory(pkt, hdr.caplen))
             elif n == -1:
                 raise KeyboardInterrupt
@@ -503,6 +507,35 @@ cdef class pcap:
     def __dealloc__(self):
         self.close()
 
+cdef class pkthdr:
+    cdef pcap_pkthdr h
+    def __cinit__(self, time_t sec=0, suseconds_t usec=0,
+                  unsigned int caplen=0, unsigned int len=0):
+        self.h.ts.tv_sec = sec
+        self.h.ts.tv_usec = usec
+        self.h.caplen = caplen
+        self.h.len = len
+    property sec:
+        def __get__(self):
+            return self.h.ts.tv_sec
+        def __set__(self, value):
+            self.h.ts.tv_sec = value
+    property nsec:
+        def __get__(self):
+            return self.h.ts.tv_usec * 1000
+        def __set__(self, value):
+            self.h.ts.tv_usec = value / 1000
+    property caplen:
+        def __get__(self):
+            return self.h.caplen
+        def __set__(self, value):
+            self.h.caplen = value
+    property len:
+        def __get__(self):
+            return self.h.len
+        def __set__(self, value):
+            self.h.len = value
+
 cdef class dumper:
     cdef pcap_dumper_t *d
 
@@ -512,36 +545,25 @@ cdef class dumper:
         if self.d == NULL:
             raise OSError(p.geterr())
 
-    cpdef dump(dumper self, packet, header=None):
+    cpdef dump(dumper self, packet, pkthdr header=None):
         """Dump a packet to a previously opened save file.
 
         Arguments:
 
         packet -- the packet
-        header -- a pcap header provided by the caller
-        A user supplied header MUST contain the following fields
-            header.sec: The timestamp in seconds from the Unix epoch
-            header.usec: The timestamp in micro seconds
-            header.caplen: Length of packet present
-            header.len: Total length of packet
+        header -- a pcap header provided by the caller of type pkthdr
         """
         if self.d == NULL:
             raise OSError("dumper is not open")
-        cdef pcap_pkthdr hdr
-        if header != None:
-            hdr.ts.tv_sec = header.sec
-            hdr.ts.tv_usec = header.usec
-            hdr.caplen = header.caplen
-            hdr.len = len(packet)
-        else:
-            hdr.ts.tv_sec = calendar.timegm(time.gmtime())
-            hdr.ts.tv_usec = 0
-            hdr.caplen = len(packet)
-            hdr.len = len(packet)
+
+        if header is None:
+            header = pkthdr(calendar.timegm(time.gmtime()), 0,
+                            len(packet), len(packet))
+        header.len = len(packet)
 
         cdef const unsigned char *packet_c = packet
         with nogil:
-            pcap_dump(<unsigned char *>self.d, &hdr, packet_c)
+            pcap_dump(<unsigned char *>self.d, &header.h, packet_c)
 
     cpdef close(dumper self):
         if self.d != NULL:

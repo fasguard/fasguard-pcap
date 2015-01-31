@@ -174,17 +174,21 @@ pcap_ex_setup(pcap_t *pcap)
 
 /* return codes: 1 = pkt, 0 = timeout, -1 = error, -2 = EOF */
 int
-pcap_ex_next(pcap_t *pcap, struct pcap_pkthdr **hdr, u_char **pkt)
+pcap_ex_next(pcap_t *pcap, struct pcap_pkthdr *hdr, u_char **pkt)
 {
 #ifdef _WIN32
+	struct pcap_pkthdr *hdrp;
+	int ret;
 	if (__pcap_ex_gotsig) {
 		__pcap_ex_gotsig = 0;
 		return (-1);
 	}
-	return (pcap_next_ex(pcap, hdr, pkt));
+	ret = pcap_next_ex(pcap, &hdrp, pkt);
+	if (hdrp && hdr)
+		*hdr = *hdrp;
+	return ret;
 #else
 	static u_char *__pkt;
-	static struct pcap_pkthdr __hdr;
 	struct timeval tv = { 1, 0 };
 	fd_set rfds;
 	int fd, n;
@@ -195,7 +199,7 @@ pcap_ex_next(pcap_t *pcap, struct pcap_pkthdr **hdr, u_char **pkt)
 			__pcap_ex_gotsig = 0;
 			return (-1);
 		}
-		if ((__pkt = (u_char *)pcap_next(pcap, &__hdr)) == NULL) {
+		if ((__pkt = (u_char *)pcap_next(pcap, hdr)) == NULL) {
 			if (pcap_file(pcap) != NULL)
 				return (-2);
 			FD_ZERO(&rfds);
@@ -207,7 +211,6 @@ pcap_ex_next(pcap_t *pcap, struct pcap_pkthdr **hdr, u_char **pkt)
 			break;
 	}
 	*pkt = __pkt;
-	*hdr = &__hdr;
 	
 	return (1);
 #endif
