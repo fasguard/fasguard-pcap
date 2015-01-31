@@ -185,7 +185,6 @@ cdef class pcap:
     cdef readonly bytes name
     cdef readonly bytes filter
     cdef char __ebuf[PCAP_ERRBUF_SIZE]
-    cdef pcap_dumper_t *__dumper
     cdef readonly str type
 
     @staticmethod
@@ -440,51 +439,6 @@ cdef class pcap:
             raise OSError, self.geterr()
 
         return n
-    
-    def dump(self, packet, header=None):
-        """Dump a packet to a previously opened save file.
-
-        Arguments:
-
-        packet -- the packet
-        header -- a pcap header provided by the caller
-        A user supplied header MUST contain the following fields
-            header.sec: The timestamp in seconds from the Unix epoch
-            header.usec: The timestamp in micro seconds
-            header.caplen: Length of packet present
-            header.len: Total length of packet
-        """
-        if self.__dumper == NULL:
-            raise OSError("dumper is not open")
-        cdef pcap_pkthdr hdr
-        if header != None:
-            hdr.ts.tv_sec = header.sec
-            hdr.ts.tv_usec = header.usec
-            hdr.caplen = header.caplen
-            hdr.len = len(packet)
-        else:
-            hdr.ts.tv_sec = calendar.timegm(time.gmtime())
-            hdr.ts.tv_usec = 0
-            hdr.caplen = len(packet)
-            hdr.len = len(packet)
-
-        cdef const unsigned char *packet_c = packet
-        with nogil:
-            pcap_dump(<unsigned char *>self.__dumper, &hdr, packet_c)
-
-    def dump_close(self):
-        if self.__dumper != NULL:
-            with nogil:
-                pcap_dump_close(self.__dumper)
-            self.__dumper = NULL
-
-    def dump_open(const char *fname):
-        if self.__dumper != NULL:
-            raise OSError("dumper already open")
-        with nogil:
-            self.__dumper = pcap_dump_open(self.__pcap, fname)
-        if not self.__dumper:
-            raise OSError, self.geterr()
 
     def close(self):
         if self.__pcap:
@@ -547,6 +501,61 @@ cdef class pcap:
         self.close()
     
     def __dealloc__(self):
+        self.close()
+
+cdef class dumper:
+    cdef pcap_dumper_t *d
+
+    def __init__(self, pcap p, const char *fname):
+        with nogil:
+            self.d = pcap_dump_open(p.__pcap, fname)
+        if self.d == NULL:
+            raise OSError(p.geterr())
+
+    cpdef dump(dumper self, packet, header=None):
+        """Dump a packet to a previously opened save file.
+
+        Arguments:
+
+        packet -- the packet
+        header -- a pcap header provided by the caller
+        A user supplied header MUST contain the following fields
+            header.sec: The timestamp in seconds from the Unix epoch
+            header.usec: The timestamp in micro seconds
+            header.caplen: Length of packet present
+            header.len: Total length of packet
+        """
+        if self.d == NULL:
+            raise OSError("dumper is not open")
+        cdef pcap_pkthdr hdr
+        if header != None:
+            hdr.ts.tv_sec = header.sec
+            hdr.ts.tv_usec = header.usec
+            hdr.caplen = header.caplen
+            hdr.len = len(packet)
+        else:
+            hdr.ts.tv_sec = calendar.timegm(time.gmtime())
+            hdr.ts.tv_usec = 0
+            hdr.caplen = len(packet)
+            hdr.len = len(packet)
+
+        cdef const unsigned char *packet_c = packet
+        with nogil:
+            pcap_dump(<unsigned char *>self.d, &hdr, packet_c)
+
+    cpdef close(dumper self):
+        if self.d != NULL:
+            with nogil:
+                pcap_dump_close(self.d)
+            self.d = NULL
+
+    def __dealloc__(self):
+        self.close()
+
+    def __enter__(dumper self):
+        return self
+
+    def __exit__(dumper self, exc_type, exc_value, traceback):
         self.close()
 
 def ex_name(char *foo):
