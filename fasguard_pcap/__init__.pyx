@@ -427,6 +427,8 @@ cdef class pcap:
             header.caplen: Length of packet present
             header.len: Total length of packet
         """
+        if self.__dumper == NULL:
+            raise OSError("dumper is not open")
         cdef pcap_pkthdr hdr
         if header != None:
             hdr.ts.tv_sec = header.sec
