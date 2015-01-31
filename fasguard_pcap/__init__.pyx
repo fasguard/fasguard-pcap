@@ -269,8 +269,7 @@ cdef class pcap:
         cdef bpf_program fcode
         free(self.__filter)
         self.__filter = strdup(value)
-        if pcap_compile(self.__pcap, &fcode, self.__filter, optimize, 0) < 0:
-            raise OSError, self.geterr()
+        self.__compile(&fcode, self.__filter, optimize, 0)
         self.__setfilter(&fcode)
         pcap_freecode(&fcode)
 
@@ -294,11 +293,15 @@ cdef class pcap:
         """Compile a filter expression to a BPF program for this pcap.
            Return the filter as a bpf program."""
         cdef bpf_program fcode
-        if pcap_compile(self.__pcap, &fcode, value, optimize, netmask) < 0:
-            raise OSError, self.geterr()
+        self.__compile(&fcode, value, optimize, netmask)
         pb = fasguard_pcap.bpf.progbuf(<object>&fcode, None)
         program = pb.__program__()
         return program
+
+    cdef __compile(pcap self, bpf_program *fp, const char *s,
+                   int optimize, unsigned int netmask):
+        if pcap_compile(self.__pcap, fp, s, optimize, netmask) < 0:
+            raise OSError, self.geterr()
 
     def setdirection(self, value):
         """Set BPF capture direction."""
