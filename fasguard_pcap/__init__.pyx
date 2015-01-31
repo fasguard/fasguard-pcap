@@ -82,6 +82,8 @@ cdef extern from "pcap/pcap.h":
                                 const char *str, int optimize,
                                 unsigned int netmask)
     void    pcap_breakloop(pcap_t *p)
+    cdef enum:
+        PCAP_ERRBUF_SIZE
 
 cdef extern from "pcap_ex.h":
     int     pcap_ex_immediate(pcap_t *p)
@@ -187,7 +189,7 @@ cdef class pcap:
     cdef pcap_t *__pcap
     cdef char *__name
     cdef char *__filter
-    cdef char __ebuf[256]
+    cdef char __ebuf[PCAP_ERRBUF_SIZE]
     cdef int __dloff
     cdef pcap_dumper_t *__dumper
 
@@ -491,7 +493,7 @@ def ex_name(char *foo):
 def lookupdev():
     """Return the name of a network device suitable for sniffing."""
     cdef char *p,
-    cdef char ebuf[256]
+    cdef char ebuf[PCAP_ERRBUF_SIZE]
     p = pcap_ex_lookupdev(ebuf)
     if p == NULL:
         raise OSError, ebuf
