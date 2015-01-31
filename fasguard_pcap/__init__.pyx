@@ -98,6 +98,7 @@ cdef struct pcap_handler_ctx:
     PyObject *callback
     PyObject *args
     int   got_exc
+    PyObject *p
 
 cdef void __pcap_handler(unsigned char *arg, const pcap_pkthdr *hdr,
                          const unsigned char *pkt) with gil:
@@ -110,6 +111,7 @@ cdef void __pcap_handler(unsigned char *arg, const pcap_pkthdr *hdr,
                                *(<object>ctx.args))
     except:
         ctx.got_exc = 1
+        (<pcap>ctx.p).breakloop()
 
 PCAP_D_INOUT = 0
 PCAP_D_IN = 1
@@ -348,6 +350,7 @@ cdef class pcap:
         ctx.callback = <PyObject *>callback
         ctx.args = <PyObject *>args
         ctx.got_exc = 0
+        ctx.p = <PyObject *>self
         n = pcap_dispatch(self.__pcap, cnt, __pcap_handler,
                           <unsigned char *>&ctx)
         if ctx.got_exc:
