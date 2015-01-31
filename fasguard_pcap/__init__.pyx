@@ -223,6 +223,8 @@ cdef class pcap:
                     self.__pcap = pcap_open_live(pcap_ex_name(p), snaplen,
                                                  promisc, timeout_ms,
                                                  self.__ebuf)
+                if self.__pcap != NULL and immediate:
+                    self.ex_immediate()
 
         if not self.__pcap:
             raise OSError, self.__ebuf
@@ -236,8 +238,6 @@ cdef class pcap:
             dlt = self.datalink()
             self.__dloff = dltoff[dlt]
         except KeyError: pass
-        if immediate:
-            self.ex_immediate()
             
     property name:
         """Network interface or dumpfile name."""
