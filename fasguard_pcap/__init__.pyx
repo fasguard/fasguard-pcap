@@ -163,7 +163,8 @@ def compile(char *str, int snaplen=65536, int dlt=DLT_RAW, int optimize=1,
     cdef int rc
     prog.bf_len = 0
     prog.bf_insns = NULL
-    rc = pcap_compile_nopcap(snaplen, dlt, &prog, str, optimize, netmask)
+    with nogil:
+        rc = pcap_compile_nopcap(snaplen, dlt, &prog, str, optimize, netmask)
     if rc == -1:
         raise OSError
     # Python-ize the bpf_program. Note that this simply wraps the buffer
@@ -198,10 +199,13 @@ cdef class pcap:
                  dumpfile="", dumptype=None):
         global dltoff
         cdef char *p
+        cdef int dumptype_c
 
         if dumptype != None:
+            dumptype_c = dumptype
             try:
-                self.__pcap = pcap_open_dead(dumptype, snaplen)
+                with nogil:
+                    self.__pcap = pcap_open_dead(dumptype_c, snaplen)
             except:
                 raise OSError, "Internal error pcap_open_dead."
             p = dumpfile
@@ -211,12 +215,14 @@ cdef class pcap:
             else:
                 p = name
                     
-            self.__pcap = pcap_open_offline(p, self.__ebuf)
+            with nogil:
+                self.__pcap = pcap_open_offline(p, self.__ebuf)
                     
             if not self.__pcap:
-                self.__pcap = pcap_open_live(pcap_ex_name(p), snaplen,
-                                             promisc, timeout_ms,
-                                             self.__ebuf)
+                with nogil:
+                    self.__pcap = pcap_open_live(pcap_ex_name(p), snaplen,
+                                                 promisc, timeout_ms,
+                                                 self.__ebuf)
 
         if not self.__pcap:
             raise OSError, self.__ebuf
@@ -241,7 +247,10 @@ cdef class pcap:
     property snaplen:
         """Maximum number of bytes to capture for each packet."""
         def __get__(self):
-            return pcap_snapshot(self.__pcap)
+            cdef int ret
+            with nogil:
+                ret = pcap_snapshot(self.__pcap)
+            return ret
         
     property dloff:
         """Datalink offset (length of layer-2 frame header)."""
@@ -256,7 +265,10 @@ cdef class pcap:
     property fd:
         """File descriptor (or Win32 HANDLE) for capture handle."""
         def __get__(self):
-            return pcap_get_selectable_fd(self.__pcap)
+            cdef int ret
+            with nogil:
+                ret = pcap_get_selectable_fd(self.__pcap)
+            return ret
         
     def fileno(self):
         """Return file descriptor (or Win32 HANDLE) for capture handle."""
@@ -269,7 +281,8 @@ cdef class pcap:
         self.__filter = strdup(value)
         self.__compile(&fcode, self.__filter, optimize, 0)
         self.__setfilter(&fcode)
-        pcap_freecode(&fcode)
+        with nogil:
+            pcap_freecode(&fcode)
 
     def setbpfprogram(self, object bpfprogram):
         """Set packet capture filter using a pre-compiled BPF program."""
@@ -284,7 +297,10 @@ cdef class pcap:
         self.__setfilter(bp)
 
     cdef void __setfilter(pcap self, bpf_program *fp):
-        if pcap_setfilter(self.__pcap, fp) < 0:
+        cdef int ret
+        with nogil:
+            ret = pcap_setfilter(self.__pcap, fp)
+        if ret < 0:
             raise OSError, self.geterr()
 
     def compile(self, const char *value, bint optimize=True,
@@ -299,21 +315,30 @@ cdef class pcap:
 
     cdef __compile(pcap self, bpf_program *fp, const char *s,
                    int optimize, unsigned int netmask):
-        if pcap_compile(self.__pcap, fp, s, optimize, netmask) < 0:
+        cdef int ret
+        with nogil:
+            ret = pcap_compile(self.__pcap, fp, s, optimize, netmask)
+        if ret < 0:
             raise OSError, self.geterr()
 
     def setdirection(self, pcap_direction_t value):
         """Set BPF capture direction."""
-        if pcap_setdirection(self.__pcap, value) < 0:
+        cdef int ret
+        with nogil:
+            ret = pcap_setdirection(self.__pcap, value)
+        if ret < 0:
             raise OSError, self.geterr()
 
     def setnonblock(self, bint nonblock=True):
         """Set non-blocking capture mode."""
-        pcap_setnonblock(self.__pcap, nonblock, self.__ebuf)
+        with nogil:
+            pcap_setnonblock(self.__pcap, nonblock, self.__ebuf)
     
     def getnonblock(self):
         """Return non-blocking capture mode as boolean."""
-        ret = pcap_getnonblock(self.__pcap, self.__ebuf)
+        cdef int ret
+        with nogil:
+            ret = pcap_getnonblock(self.__pcap, self.__ebuf)
         if ret < 0:
             raise OSError, self.__ebuf
         elif ret:
@@ -322,13 +347,17 @@ cdef class pcap:
     
     def datalink(self):
         """Return datalink type (DLT_* values)."""
-        return pcap_datalink(self.__pcap)
+        cdef int ret
+        with nogil:
+            ret = pcap_datalink(self.__pcap)
+        return ret
     
     def next(self):
         """Return the next (timestamp, packet) tuple, or None on error."""
         cdef pcap_pkthdr hdr
         cdef const unsigned char *pkt
-        pkt = pcap_next(self.__pcap, &hdr)
+        with nogil:
+            pkt = pcap_next(self.__pcap, &hdr)
         if not pkt:
             return None
         return (hdr.ts.tv_sec + (hdr.ts.tv_usec / 1000000.0),
@@ -365,7 +394,8 @@ cdef class pcap:
         # so the ref held during exection of this function is
         # sufficient to keep the object alive.)
         cdef unsigned char *arg = <unsigned char *><PyObject *>ctx
-        n = pcap_dispatch(self.__pcap, cnt, __pcap_handler, arg)
+        with nogil:
+            n = pcap_dispatch(self.__pcap, cnt, __pcap_handler, arg)
         if ctx.exc_info is not None:
             raise ctx.exc_info[0], ctx.exc_info[1], ctx.exc_info[2]
         return n
@@ -382,7 +412,8 @@ cdef class pcap:
         cdef pcap_pkthdr *hdr
         cdef unsigned char *pkt
         cdef int n
-        pcap_ex_setup(self.__pcap)
+        with nogil:
+            pcap_ex_setup(self.__pcap)
         while 1:
             with nogil:
                 n = pcap_ex_next(self.__pcap, &hdr, &pkt)
@@ -409,7 +440,10 @@ cdef class pcap:
         packet -- a pointer to the packet in memory
         """
         cdef int n
-        n = pcap_inject(self.__pcap, packet, len)
+        cdef size_t packet_len = len(packet)
+        cdef const unsigned char *packet_c = packet
+        with nogil:
+            n = pcap_inject(self.__pcap, packet_c, packet_len)
         if (n < 0):
             raise OSError, self.geterr()
 
@@ -442,44 +476,59 @@ cdef class pcap:
             hdr.caplen = len(packet)
             hdr.len = len(packet)
 
-        pcap_dump(<unsigned char *>self.__dumper, &hdr, packet)
+        cdef const unsigned char *packet_c = packet
+        with nogil:
+            pcap_dump(<unsigned char *>self.__dumper, &hdr, packet_c)
 
     def dump_close(self):
         if self.__dumper != NULL:
-            pcap_dump_close(self.__dumper)
+            with nogil:
+                pcap_dump_close(self.__dumper)
             self.__dumper = NULL
 
     def dump_open(const char *fname):
         if self.__dumper != NULL:
             raise OSError("dumper already open")
-        self.__dumper = pcap_dump_open(self.__pcap, fname)
+        with nogil:
+            self.__dumper = pcap_dump_open(self.__pcap, fname)
         if not self.__dumper:
             raise OSError, self.geterr()
 
     def close(self):
         if self.__pcap:
-            pcap_close(self.__pcap)
+            with nogil:
+                pcap_close(self.__pcap)
             self.__pcap = NULL
 
     def geterr(self):
         """Return the last error message associated with this handle."""
-        return pcap_geterr(self.__pcap)
+        cdef char *ret
+        with nogil:
+            ret = pcap_geterr(self.__pcap)
+        return ret
     
     def stats(self):
         """Return a 3-tuple of the total number of packets received,
         dropped, and dropped by the interface."""
         cdef pcap_stat pstat
-        if pcap_stats(self.__pcap, &pstat) < 0:
+        cdef int ret
+        with nogil:
+            ret = pcap_stats(self.__pcap, &pstat)
+        if ret < 0:
             raise OSError, self.geterr()
         return (pstat.ps_recv, pstat.ps_drop, pstat.ps_ifdrop)
 
     cdef void ex_immediate(self):
         """disable buffering, if possible"""
-        if pcap_ex_immediate(self.__pcap) < 0:
+        cdef int ret
+        with nogil:
+            ret = pcap_ex_immediate(self.__pcap)
+        if ret < 0:
             raise OSError, "couldn't set BPF immediate mode"
 
     def __iter__(self):
-        pcap_ex_setup(self.__pcap)
+        with nogil:
+            pcap_ex_setup(self.__pcap)
         return self
 
     def __next__(self):
@@ -505,13 +554,17 @@ cdef class pcap:
         self.close()
 
 def ex_name(char *foo):
-    return pcap_ex_name(foo)
+    cdef char *ret
+    with nogil:
+        ret = pcap_ex_name(foo)
+    return ret
 
 def lookupdev():
     """Return the name of a network device suitable for sniffing."""
     cdef char *p,
     cdef char ebuf[PCAP_ERRBUF_SIZE]
-    p = pcap_ex_lookupdev(ebuf)
+    with nogil:
+        p = pcap_ex_lookupdev(ebuf)
     if p == NULL:
         raise OSError, ebuf
     return p
