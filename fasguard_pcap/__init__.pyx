@@ -207,9 +207,7 @@ cdef class pcap:
             p = dumpfile
         else:
             if not name:
-                p = pcap_ex_lookupdev(self.__ebuf)
-                if p == NULL:
-                    raise OSError, self.__ebuf
+                p = lookupdev()
             else:
                 p = name
                     
@@ -226,12 +224,12 @@ cdef class pcap:
         if dumpfile != "":
             self.__dumper = pcap_dump_open(self.__pcap, dumpfile)
             if not self.__dumper:
-                raise OSError, pcap_geterr(self.__pcap)
+                raise OSError, self.geterr()
             
         self.__name = strdup(p)
         self.__filter = strdup("")
         try:
-            dlt = pcap_datalink(self.__pcap)
+            dlt = self.datalink()
             self.__dloff = dltoff[dlt]
         except KeyError: pass
         if immediate and pcap_ex_immediate(self.__pcap) < 0:
@@ -264,7 +262,7 @@ cdef class pcap:
         
     def fileno(self):
         """Return file descriptor (or Win32 HANDLE) for capture handle."""
-        return pcap_get_selectable_fd(self.__pcap)
+        return self.fd
     
     def setfilter(self, value, optimize=1):
         """Set packet capture filter using a filter expression."""
@@ -272,9 +270,9 @@ cdef class pcap:
         free(self.__filter)
         self.__filter = strdup(value)
         if pcap_compile(self.__pcap, &fcode, self.__filter, optimize, 0) < 0:
-            raise OSError, pcap_geterr(self.__pcap)
+            raise OSError, self.geterr()
         if pcap_setfilter(self.__pcap, &fcode) < 0:
-            raise OSError, pcap_geterr(self.__pcap)
+            raise OSError, self.geterr()
         pcap_freecode(&fcode)
 
     def setbpfprogram(self, object bpfprogram):
@@ -288,14 +286,14 @@ cdef class pcap:
         pbp = fasguard_pcap.bpf.program.__progbuf__(bpfprogram)
         bp = fasguard_pcap.bpf.progbuf.__bpf_program__(pbp)
         if pcap_setfilter(self.__pcap, bp) < 0:
-            raise OSError, pcap_geterr(self.__pcap)
+            raise OSError, self.geterr()
 
     def compile(self, value, optimize=True, netmask=0):
         """Compile a filter expression to a BPF program for this pcap.
            Return the filter as a bpf program."""
         cdef bpf_program fcode
         if pcap_compile(self.__pcap, &fcode, value, optimize, netmask) < 0:
-            raise OSError, pcap_geterr(self.__pcap)
+            raise OSError, self.geterr()
         pb = fasguard_pcap.bpf.progbuf(<object>&fcode, None)
         program = pb.__program__()
         return program
@@ -303,7 +301,7 @@ cdef class pcap:
     def setdirection(self, value):
         """Set BPF capture direction."""
         if pcap_setdirection(self.__pcap, value) < 0:
-            raise OSError, pcap_geterr(self.__pcap)
+            raise OSError, self.geterr()
 
     def setnonblock(self, nonblock=True):
         """Set non-blocking capture mode."""
@@ -409,7 +407,7 @@ cdef class pcap:
         cdef int n
         n = pcap_inject(self.__pcap, packet, len)
         if (n < 0):
-            raise OSError, pcap_geterr(self.__pcap)
+            raise OSError, self.geterr()
 
         return n
     
@@ -457,7 +455,7 @@ cdef class pcap:
         dropped, and dropped by the interface."""
         cdef pcap_stat pstat
         if pcap_stats(self.__pcap, &pstat) < 0:
-            raise OSError, pcap_geterr(self.__pcap)
+            raise OSError, self.geterr()
         return (pstat.ps_recv, pstat.ps_drop, pstat.ps_ifdrop)
 
     def __iter__(self):
@@ -484,8 +482,7 @@ cdef class pcap:
             free(self.__name)
         if self.__filter:
             free(self.__filter)
-        if self.__pcap:
-            pcap_close(self.__pcap)
+        self.close()
 
 def ex_name(char *foo):
     return pcap_ex_name(foo)
