@@ -191,13 +191,11 @@ cdef class pcap:
     cdef char *__name
     cdef char *__filter
     cdef char __ebuf[PCAP_ERRBUF_SIZE]
-    cdef int __dloff
     cdef pcap_dumper_t *__dumper
 
     def __init__(self, name=None, int snaplen=65535, bint promisc=True,
                  int timeout_ms=500, immediate=False,
                  dumpfile="", dumptype=None):
-        global dltoff
         cdef char *p
         cdef int dumptype_c
 
@@ -234,10 +232,6 @@ cdef class pcap:
             
         self.__name = strdup(p)
         self.__filter = strdup("")
-        try:
-            dlt = self.datalink()
-            self.__dloff = dltoff[dlt]
-        except KeyError: pass
             
     property name:
         """Network interface or dumpfile name."""
@@ -255,7 +249,7 @@ cdef class pcap:
     property dloff:
         """Datalink offset (length of layer-2 frame header)."""
         def __get__(self):
-            return self.__dloff
+            return dltoff.get(self.datalink(), 0)
 
     property filter:
         """Current packet capture filter."""
