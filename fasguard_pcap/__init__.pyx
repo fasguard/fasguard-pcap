@@ -232,8 +232,8 @@ cdef class pcap:
             dlt = self.datalink()
             self.__dloff = dltoff[dlt]
         except KeyError: pass
-        if immediate and pcap_ex_immediate(self.__pcap) < 0:
-            raise OSError, "couldn't set BPF immediate mode"
+        if immediate:
+            self.ex_immediate()
             
     property name:
         """Network interface or dumpfile name."""
@@ -457,6 +457,11 @@ cdef class pcap:
         if pcap_stats(self.__pcap, &pstat) < 0:
             raise OSError, self.geterr()
         return (pstat.ps_recv, pstat.ps_drop, pstat.ps_ifdrop)
+
+    cdef void ex_immediate(self):
+        """disable buffering, if possible"""
+        if pcap_ex_immediate(self.__pcap) < 0:
+            raise OSError, "couldn't set BPF immediate mode"
 
     def __iter__(self):
         pcap_ex_setup(self.__pcap)
