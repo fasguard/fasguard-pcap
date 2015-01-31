@@ -55,6 +55,9 @@ bpf = Extension(name='fasguard_pcap.bpf',
                  libraries=['pcap']
 	)
 
+memorybuffer = Extension(name='fasguard_pcap.memorybuffer',
+                         sources=['fasguard_pcap/memorybuffer.pyx'])
+
 fasguard_pcap_cmds = { 'build_ext':build_ext }
 
 setup(name='fasguard-pcap',
@@ -65,6 +68,6 @@ setup(name='fasguard-pcap',
       url='https://fasguard.github.io/',
       packages = ['fasguard_pcap'],
       cmdclass=fasguard_pcap_cmds,
-      ext_modules = [ bpf, pcap, ],
+      ext_modules = [bpf, pcap, memorybuffer],
       )
 

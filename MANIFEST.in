@@ -4,5 +4,6 @@ include INSTALL
 include COPYRIGHT
 include CONTRIBUTORS
 include	fasguard_pcap/bpf.pxd
+include	fasguard_pcap/memorybuffer.pxd
 include fasguard_pcap/pcap_LICENSE
 include fasguard_pcap/pcap_ex.h

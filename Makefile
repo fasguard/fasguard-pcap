@@ -23,4 +23,5 @@ clean:
 	$(PYTHON) setup.py clean
 	rm -rf build dist MANIFEST \
 		fasguard_pcap/__init__.c \
-		fasguard_pcap/bpf.c
+		fasguard_pcap/bpf.c \
+		fasguard_pcap/memorybuffer.c
