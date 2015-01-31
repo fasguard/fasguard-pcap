@@ -178,12 +178,15 @@ cdef class pcap:
             Current packet capture filter.
         name
             Network interface or dumpfile name.
+        type
+            Packet source type ('live', 'offline', or 'dead').
     """
     cdef pcap_t *__pcap
     cdef readonly bytes name
     cdef readonly bytes filter
     cdef char __ebuf[PCAP_ERRBUF_SIZE]
     cdef pcap_dumper_t *__dumper
+    cdef readonly str type
 
     @staticmethod
     def open_dead(int linktype, int snaplen):
@@ -198,6 +201,7 @@ cdef class pcap:
             ret.__pcap = pcap_open_dead(linktype, snaplen)
         if ret.__pcap == NULL:
             raise OSError("error in pcap_open_dead()")
+        ret.type = 'dead'
         return ret
 
     @staticmethod
@@ -213,6 +217,7 @@ cdef class pcap:
         if ret.__pcap == NULL:
             raise OSError(ret.__ebuf)
         ret.name = fname
+        ret.type = 'offline'
         return ret
 
     @staticmethod
@@ -234,6 +239,7 @@ cdef class pcap:
         if ret.__pcap == NULL:
             raise OSError(ret.__ebuf)
         ret.name = device
+        ret.type = 'live'
         return ret
 
     property snaplen:
