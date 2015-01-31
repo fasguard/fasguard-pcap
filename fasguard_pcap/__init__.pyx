@@ -93,9 +93,6 @@ cdef extern from "pcap_ex.h" nogil:
                          unsigned char **pkt)
     char   *pcap_ex_lookupdev(char *errbuf)
 
-from libc.stdlib cimport free
-from libc.string cimport strdup
-
 cdef class pcap_handler_ctx:
     cdef object callback
     cdef object args
@@ -186,17 +183,23 @@ cdef class pcap:
     immediate -- disable buffering, if possible
     dumpfile  -- name of a dumpfile to open, if necessary
     dumptype  -- only open a dumpfile and specify its type
+
+    Attributes:
+        filter
+            Current packet capture filter.
+        name
+            Network interface or dumpfile name.
     """
     cdef pcap_t *__pcap
-    cdef char *__name
-    cdef char *__filter
+    cdef readonly bytes name
+    cdef readonly bytes filter
     cdef char __ebuf[PCAP_ERRBUF_SIZE]
     cdef pcap_dumper_t *__dumper
 
     def __init__(self, name=None, int snaplen=65535, bint promisc=True,
                  int timeout_ms=500, immediate=False,
                  dumpfile="", dumptype=None):
-        cdef char *p
+        cdef bytes p
         cdef int dumptype_c
 
         if dumptype != None:
@@ -230,14 +233,9 @@ cdef class pcap:
         if dumpfile != "":
             self.dump_open(dumpfile)
             
-        self.__name = strdup(p)
-        self.__filter = strdup("")
+        self.name = p
+        self.filter = ""
             
-    property name:
-        """Network interface or dumpfile name."""
-        def __get__(self):
-            return self.__name
-
     property snaplen:
         """Maximum number of bytes to capture for each packet."""
         def __get__(self):
@@ -251,11 +249,6 @@ cdef class pcap:
         def __get__(self):
             return dltoff.get(self.datalink(), 0)
 
-    property filter:
-        """Current packet capture filter."""
-        def __get__(self):
-            return self.__filter
-    
     property fd:
         """File descriptor (or Win32 HANDLE) for capture handle."""
         def __get__(self):
@@ -268,12 +261,11 @@ cdef class pcap:
         """Return file descriptor (or Win32 HANDLE) for capture handle."""
         return self.fd
     
-    def setfilter(self, value, int optimize=1):
+    def setfilter(self, const char *value, int optimize=1):
         """Set packet capture filter using a filter expression."""
         cdef bpf_program fcode
-        free(self.__filter)
-        self.__filter = strdup(value)
-        self.__compile(&fcode, self.__filter, optimize, 0)
+        self.filter = value
+        self.__compile(&fcode, value, optimize, 0)
         self.__setfilter(&fcode)
         with nogil:
             pcap_freecode(&fcode)
@@ -541,10 +533,6 @@ cdef class pcap:
                 raise StopIteration
     
     def __dealloc__(self):
-        if self.__name:
-            free(self.__name)
-        if self.__filter:
-            free(self.__filter)
         self.close()
 
 def ex_name(char *foo):
