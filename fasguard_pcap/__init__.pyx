@@ -94,24 +94,32 @@ cdef extern from "pcap_ex.h":
 from libc.stdlib cimport free
 from libc.string cimport strdup
 
-cdef struct pcap_handler_ctx:
-    PyObject *callback
-    PyObject *args
-    int   got_exc
-    PyObject *p
+cdef class pcap_handler_ctx:
+    cdef object callback
+    cdef object args
+    cdef object exc_info
+    cdef pcap p
+    def __cinit__(self, object callback, object args, pcap p):
+        self.callback = callback
+        self.args = args
+        self.exc_info = None
+        self.p = p
 
 cdef void __pcap_handler(unsigned char *arg, const pcap_pkthdr *hdr,
                          const unsigned char *pkt) with gil:
-    cdef pcap_handler_ctx *ctx
-    ctx = <pcap_handler_ctx *>arg
+    cdef pcap_handler_ctx ctx = <pcap_handler_ctx><PyObject *>arg
+    if ctx.exc_info is not None:
+        # don't want to risk raising another exception, so we'll wait
+        # until pcap_breakloop() does its thing
+        return
     try:
-        (<object>ctx.callback)(hdr.ts.tv_sec + (hdr.ts.tv_usec/1000000.0),
-                               PyBuffer_FromMemory(<void *>pkt,
-                                                   hdr.caplen),
-                               *(<object>ctx.args))
+        ctx.callback(hdr.ts.tv_sec + (hdr.ts.tv_usec/1000000.0),
+                     PyBuffer_FromMemory(<void *>pkt, hdr.caplen),
+                     *ctx.args)
     except:
-        ctx.got_exc = 1
-        (<pcap>ctx.p).breakloop()
+        assert ctx.exc_info is None
+        ctx.exc_info = sys.exc_info()
+        ctx.p.breakloop()
 
 PCAP_D_INOUT = 0
 PCAP_D_IN = 1
@@ -344,18 +352,18 @@ cdef class pcap:
         callback -- function with (timestamp, pkt, *args) prototype
         *args    -- optional arguments passed to callback on execution
         """
-        cdef pcap_handler_ctx ctx
+        cdef pcap_handler_ctx ctx = pcap_handler_ctx(callback, args, self)
         cdef int n
 
-        ctx.callback = <PyObject *>callback
-        ctx.args = <PyObject *>args
-        ctx.got_exc = 0
-        ctx.p = <PyObject *>self
-        n = pcap_dispatch(self.__pcap, cnt, __pcap_handler,
-                          <unsigned char *>&ctx)
-        if ctx.got_exc:
-            exc = sys.exc_info()
-            raise exc[0], exc[1], exc[2]
+        # there's no need to increase ref count on ctx because
+        # pcap_dispatch() doesn't hold onto ctx.  (once
+        # pcap_dispatch() returns nothing will ever call the callback,
+        # so the ref held during exection of this function is
+        # sufficient to keep the object alive.)
+        cdef unsigned char *arg = <unsigned char *><PyObject *>ctx
+        n = pcap_dispatch(self.__pcap, cnt, __pcap_handler, arg)
+        if ctx.exc_info is not None:
+            raise ctx.exc_info[0], ctx.exc_info[1], ctx.exc_info[2]
         return n
 
     def loop(self, callback, *args):
