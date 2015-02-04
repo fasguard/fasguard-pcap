@@ -96,6 +96,9 @@ cdef extern from "pcap_ex.h" nogil:
                          unsigned char **pkt)
     char   *pcap_ex_lookupdev(char *errbuf)
 
+class PcapError(Exception):
+    pass
+
 cdef class pcap_handler_ctx:
     cdef object callback
     cdef object args
@@ -170,7 +173,7 @@ def compile(char *str, int snaplen=65536, int dlt=DLT_RAW, int optimize=1,
     with nogil:
         rc = pcap_compile_nopcap(snaplen, dlt, &prog, str, optimize, netmask)
     if rc == -1:
-        raise OSError
+        raise PcapError()
     # Python-ize the bpf_program. Note that this simply wraps the buffer
     # which pcap just allocated in the C library heap.
     pb = fasguard_pcap.bpf.progbuf(<object> &prog, None)
@@ -206,7 +209,7 @@ cdef class pcap:
         with nogil:
             ret.__pcap = pcap_open_dead(linktype, snaplen)
         if ret.__pcap == NULL:
-            raise OSError("error in pcap_open_dead()")
+            raise PcapError("error in pcap_open_dead()")
         ret.type = 'dead'
         return ret
 
@@ -221,7 +224,7 @@ cdef class pcap:
         with nogil:
             ret.__pcap = pcap_open_offline(fname, ret.__ebuf)
         if ret.__pcap == NULL:
-            raise OSError(ret.__ebuf)
+            raise PcapError(ret.__ebuf)
         ret.name = fname
         ret.type = 'offline'
         return ret
@@ -243,7 +246,7 @@ cdef class pcap:
             ret.__pcap = pcap_open_live(device, snaplen, promisc, to_ms,
                                         ret.__ebuf)
         if ret.__pcap == NULL:
-            raise OSError(ret.__ebuf)
+            raise PcapError(ret.__ebuf)
         ret.name = device
         ret.type = 'live'
         return ret
@@ -299,7 +302,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_setfilter(self.__pcap, fp)
         if ret < 0:
-            raise OSError, self.geterr()
+            raise PcapError(self.geterr())
 
     def compile(self, const char *value, bint optimize=True,
                 unsigned int netmask=0):
@@ -317,7 +320,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_compile(self.__pcap, fp, s, optimize, netmask)
         if ret < 0:
-            raise OSError, self.geterr()
+            raise PcapError(self.geterr())
 
     def setdirection(self, pcap_direction_t value):
         """Set BPF capture direction."""
@@ -325,7 +328,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_setdirection(self.__pcap, value)
         if ret < 0:
-            raise OSError, self.geterr()
+            raise PcapError(self.geterr())
 
     def setnonblock(self, bint nonblock=True):
         """Set non-blocking capture mode."""
@@ -338,7 +341,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_getnonblock(self.__pcap, self.__ebuf)
         if ret < 0:
-            raise OSError, self.__ebuf
+            raise PcapError(self.__ebuf)
         elif ret:
             return True
         return False
@@ -453,7 +456,7 @@ cdef class pcap:
         finally:
             PyBuffer_Release(&view)
         if (n < 0):
-            raise OSError, self.geterr()
+            raise PcapError(self.geterr())
 
         return n
 
@@ -478,7 +481,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_stats(self.__pcap, &pstat)
         if ret < 0:
-            raise OSError, self.geterr()
+            raise PcapError(self.geterr())
         return (pstat.ps_recv, pstat.ps_drop, pstat.ps_ifdrop)
 
     cpdef ex_immediate(self):
@@ -489,7 +492,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_ex_immediate(self.__pcap)
         if ret < 0:
-            raise OSError, "couldn't set BPF immediate mode"
+            raise PcapError("couldn't set BPF immediate mode")
 
     def __iter__(self):
         with nogil:
@@ -559,7 +562,7 @@ cdef class dumper:
         with nogil:
             self.d = pcap_dump_open(p.__pcap, fname)
         if self.d == NULL:
-            raise OSError(p.geterr())
+            raise PcapError(p.geterr())
 
     cpdef dump(dumper self, object packet, pkthdr header=None):
         """Dump a packet to a previously opened save file.
@@ -570,7 +573,7 @@ cdef class dumper:
         header -- a pcap header provided by the caller of type pkthdr
         """
         if self.d == NULL:
-            raise OSError("dumper is not open")
+            raise PcapError("dumper is not open")
         if not PyObject_CheckBuffer(packet):
             raise TypeError("packet object must follow the buffer protocol")
 
@@ -615,6 +618,6 @@ def lookupdev():
     with nogil:
         p = pcap_ex_lookupdev(ebuf)
     if p == NULL:
-        raise OSError, ebuf
+        raise PcapError(ebuf)
     return p
 
