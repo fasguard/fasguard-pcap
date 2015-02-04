@@ -59,7 +59,11 @@ cdef extern from "pcap/pcap.h" nogil:
     pcap_t *pcap_open_live(const char *device, int snaplen, int promisc,
                            int to_ms, char *errbuf)
     pcap_t *pcap_open_dead(int linktype, int snaplen)
+    pcap_t *pcap_open_dead_with_tstamp_precision(
+        int linktype, int snaplen, unsigned int precision)
     pcap_t *pcap_open_offline(char *fname, char *errbuf)
+    pcap_t *pcap_open_offline_with_tstamp_precision(
+        const char *fname, unsigned int precision, char *errbuf)
     pcap_t *pcap_create(const char *source, char *errbuf)
     int     pcap_activate(pcap_t *p)
     pcap_dumper_t *pcap_dump_open(pcap_t *p, const char *fname)
@@ -88,8 +92,12 @@ cdef extern from "pcap/pcap.h" nogil:
                                 const char *str, int optimize,
                                 unsigned int netmask)
     void    pcap_breakloop(pcap_t *p)
+    int     pcap_get_tstamp_precision(pcap_t *p)
+    int     pcap_set_tstamp_precision(pcap_t *p, int tstamp_precision)
     cdef enum:
         PCAP_ERRBUF_SIZE
+        PCAP_TSTAMP_PRECISION_MICRO
+        PCAP_TSTAMP_PRECISION_NANO
         PCAP_WARNING
         PCAP_WARNING_PROMISC_NOTSUP
         PCAP_WARNING_TSTAMP_TYPE_NOTSUP
@@ -128,7 +136,8 @@ cdef void __pcap_handler(unsigned char *arg, const pcap_pkthdr *hdr_c,
     cdef pkthdr hdr
     cdef MemoryBuffer pkt_mb
     try:
-        hdr = pkthdr(hdr_c.ts.tv_sec, hdr_c.ts.tv_usec,
+        hdr = pkthdr(ctx.p.tstamp_precision,
+                     hdr_c.ts.tv_sec, hdr_c.ts.tv_usec,
                      hdr_c.caplen, hdr_c.len)
         pkt_mb = MemoryBuffer_init(<void *>pkt, hdr.caplen)
         ctx.callback(hdr, pkt_mb, *ctx.args)
@@ -206,31 +215,37 @@ cdef class pcap:
     cdef readonly str type
 
     @staticmethod
-    def open_dead(int linktype, int snaplen):
+    def open_dead(int linktype, int snaplen,
+                  unsigned int precision=PCAP_TSTAMP_PRECISION_MICRO):
         """Open a handle to a packet capture descriptor.
 
         Keyword arguments:
         linktype  -- link-layer type
         snaplen   -- maximum number of bytes to capture for each packet
+        precision -- time stamp precision for packets
         """
         ret = pcap()
         with nogil:
-            ret.__pcap = pcap_open_dead(linktype, snaplen)
+            ret.__pcap = pcap_open_dead_with_tstamp_precision(
+                linktype, snaplen, precision)
         if ret.__pcap == NULL:
             raise PcapError("error in pcap_open_dead()")
         ret.type = 'dead'
         return ret
 
     @staticmethod
-    def open_offline(const char *fname):
+    def open_offline(const char *fname,
+                     unsigned int precision=PCAP_TSTAMP_PRECISION_MICRO):
         """Open a handle to a packet capture descriptor.
 
         Keyword arguments:
         fname     -- name of a dumpfile to open
+        precision -- time stamp precision for packets
         """
         ret = pcap()
         with nogil:
-            ret.__pcap = pcap_open_offline(fname, ret.__ebuf)
+            ret.__pcap = pcap_open_offline_with_tstamp_precision(
+                fname, precision, ret.__ebuf)
         if ret.__pcap == NULL:
             raise PcapError(ret.__ebuf)
         ret.name = fname
@@ -278,6 +293,19 @@ cdef class pcap:
                 ret = pcap_snapshot(self.__pcap)
             return ret
         
+    property tstamp_precision:
+        def __get__(self):
+            cdef int ret
+            with nogil:
+                ret = pcap_get_tstamp_precision(self.__pcap)
+            return ret
+        def __set__(self, int tstamp_precision):
+            cdef int ret
+            with nogil:
+                ret = pcap_set_tstamp_precision(self.__pcap, tstamp_precision)
+            if ret != 0:
+                raise PcapError(self.geterr())
+
     property dloff:
         """Datalink offset (length of layer-2 frame header)."""
         def __get__(self):
@@ -385,7 +413,7 @@ cdef class pcap:
     
     def next(self):
         """Return the next (header, packet) tuple, or None on error."""
-        cdef pkthdr hdr = pkthdr()
+        cdef pkthdr hdr = pkthdr(self.tstamp_precision)
         cdef const unsigned char *pkt
         with nogil:
             pkt = pcap_next(self.__pcap, &hdr.h)
@@ -443,7 +471,7 @@ cdef class pcap:
         callback -- function with (header, pkt, *args) prototype
         *args    -- optional arguments passed to callback on execution
         """
-        cdef pkthdr hdr = pkthdr()
+        cdef pkthdr hdr = pkthdr(self.tstamp_precision)
         cdef unsigned char *pkt
         cdef int n
         cdef MemoryBuffer pkt_mb
@@ -530,7 +558,7 @@ cdef class pcap:
         return self
 
     def __next__(self):
-        cdef pkthdr hdr = pkthdr()
+        cdef pkthdr hdr = pkthdr(self.tstamp_precision)
         cdef unsigned char *pkt
         cdef int n
         while 1:
@@ -557,13 +585,34 @@ cdef class pcap:
         self.close()
 
 cdef class pkthdr:
+    cdef int _precision
     cdef pcap_pkthdr h
-    def __cinit__(self, time_t sec=0, suseconds_t usec=0,
+    def __cinit__(self, precision, time_t sec=0, suseconds_t usec_or_nsec=0,
                   unsigned int caplen=0, unsigned int len=0):
+        if precision != PCAP_TSTAMP_PRECISION_MICRO \
+           and precision != PCAP_TSTAMP_PRECISION_NANO:
+            raise ValueError(
+                'only microsecond and nanosecond precisions are supported')
+        self._precision = precision
         self.h.ts.tv_sec = sec
-        self.h.ts.tv_usec = usec
+        self.h.ts.tv_usec = usec_or_nsec
         self.h.caplen = caplen
         self.h.len = len
+    property precision:
+        def __get__(self):
+            return self._precision
+        def __set__(self, value):
+            # convert the value from one precision to another
+            if self._precision == value:
+                return
+            if value == PCAP_TSTAMP_PRECISION_MICRO:
+                self.h.ts.tv_usec /= 1000
+            elif value == PCAP_TSTAMP_PRECISION_NANO:
+                self.h.ts.tv_usec *= 1000
+            else:
+                raise ValueError(
+                    'only microsecond and nanosecond precisions are supported')
+            self._precision = value
     property sec:
         def __get__(self):
             return self.h.ts.tv_sec
@@ -571,9 +620,15 @@ cdef class pkthdr:
             self.h.ts.tv_sec = value
     property nsec:
         def __get__(self):
-            return self.h.ts.tv_usec * 1000
+            if self._precision == PCAP_TSTAMP_PRECISION_NANO:
+                return self.h.ts.tv_usec
+            else:
+                return self.h.ts.tv_usec * 1000
         def __set__(self, value):
-            self.h.ts.tv_usec = value / 1000
+            if self._precision == PCAP_TSTAMP_PRECISION_NANO:
+                self.h.ts.tv_usec = value
+            else:
+                self.h.ts.tv_usec = value / 1000
     property caplen:
         def __get__(self):
             return self.h.caplen
@@ -584,15 +639,20 @@ cdef class pkthdr:
             return self.h.len
         def __set__(self, value):
             self.h.len = value
+    cpdef pkthdr copy(pkthdr self):
+        return pkthdr(self._precision, self.h.ts.tv_sec, self.h.ts.tv_usec,
+                      self.h.caplen, self.h.len)
 
 cdef class dumper:
     cdef pcap_dumper_t *d
+    cdef int tstamp_precision
 
     def __init__(self, pcap p, const char *fname):
         with nogil:
             self.d = pcap_dump_open(p.__pcap, fname)
         if self.d == NULL:
             raise PcapError(p.geterr())
+        self.tstamp_precision = p.tstamp_precision
 
     cpdef dump(dumper self, object packet, pkthdr header=None):
         """Dump a packet to a previously opened save file.
@@ -607,12 +667,20 @@ cdef class dumper:
         if not PyObject_CheckBuffer(packet):
             raise TypeError("packet object must follow the buffer protocol")
 
+        cdef pkthdr newheader
         cdef Py_buffer view
         PyObject_GetBuffer(packet, &view, PyBUF_SIMPLE)
         try:
             if header is None:
-                header = pkthdr(calendar.timegm(time.gmtime()), 0,
+                header = pkthdr(self.tstamp_precision,
+                                calendar.timegm(time.gmtime()), 0,
                                 view.len, view.len)
+            elif header.precision != self.tstamp_precision:
+                newheader = header.copy()
+                # convert precision
+                newheader.precision = self.tstamp_precision
+                header = newheader
+
             header.len = view.len
             with nogil:
                 pcap_dump(<unsigned char *>self.d, &header.h,
