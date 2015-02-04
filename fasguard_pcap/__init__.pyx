@@ -291,7 +291,7 @@ cdef class pcap:
         cdef bpf_program *bp
         #cdef int i
         if not isinstance(bpfprogram, fasguard_pcap.bpf.program):
-            raise ValueError, ""
+            raise TypeError()
         # cast to temporary required.
         pbp = fasguard_pcap.bpf.program.__progbuf__(bpfprogram)
         bp = fasguard_pcap.bpf.progbuf.__bpf_program__(pbp)
