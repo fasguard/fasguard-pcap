@@ -20,6 +20,7 @@ __revison__ = '2'
 
 from cpython.buffer cimport PyBUF_SIMPLE, PyBuffer_Release, \
     PyObject_CheckBuffer, PyObject_GetBuffer
+from cpython.exc cimport PyErr_WarnEx
 from cpython.ref cimport PyObject
 from posix.time cimport timeval
 from posix.types cimport suseconds_t, time_t
@@ -59,6 +60,8 @@ cdef extern from "pcap/pcap.h" nogil:
                            int to_ms, char *errbuf)
     pcap_t *pcap_open_dead(int linktype, int snaplen)
     pcap_t *pcap_open_offline(char *fname, char *errbuf)
+    pcap_t *pcap_create(const char *source, char *errbuf)
+    int     pcap_activate(pcap_t *p)
     pcap_dumper_t *pcap_dump_open(pcap_t *p, const char *fname)
     void pcap_dump_close(pcap_dumper_t *p)
     int     pcap_compile(pcap_t *p, bpf_program *fp, const char *str,
@@ -87,6 +90,9 @@ cdef extern from "pcap/pcap.h" nogil:
     void    pcap_breakloop(pcap_t *p)
     cdef enum:
         PCAP_ERRBUF_SIZE
+        PCAP_WARNING
+        PCAP_WARNING_PROMISC_NOTSUP
+        PCAP_WARNING_TSTAMP_TYPE_NOTSUP
 
 cdef extern from "pcap_ex.h" nogil:
     int     pcap_ex_immediate(pcap_t *p)
@@ -97,6 +103,8 @@ cdef extern from "pcap_ex.h" nogil:
     char   *pcap_ex_lookupdev(char *errbuf)
 
 class PcapError(Exception):
+    pass
+class PcapWarning(Warning):
     pass
 
 cdef class pcap_handler_ctx:
@@ -251,6 +259,17 @@ cdef class pcap:
         ret.type = 'live'
         return ret
 
+    @staticmethod
+    def create(const char *source):
+        ret = pcap()
+        with nogil:
+            ret.__pcap = pcap_create(source, ret.__ebuf)
+        if ret.__pcap == NULL:
+            raise PcapError(ret.__ebuf)
+        ret.name = source
+        ret.type = 'live'
+        return ret
+
     property snaplen:
         """Maximum number of bytes to capture for each packet."""
         def __get__(self):
@@ -275,6 +294,17 @@ cdef class pcap:
     def fileno(self):
         """Return file descriptor (or Win32 HANDLE) for capture handle."""
         return self.fd
+
+    cpdef activate(self):
+        cdef int ret
+        with nogil:
+            ret = pcap_activate(self.__pcap)
+        if ret == PCAP_WARNING_PROMISC_NOTSUP \
+           or ret == PCAP_WARNING_TSTAMP_TYPE_NOTSUP \
+           or ret == PCAP_WARNING:
+            PyErr_WarnEx(PcapWarning, self.geterr(), 1)
+        elif ret != 0:
+            raise PcapError(self.geterr())
     
     def setfilter(self, const char *value, int optimize=1):
         """Set packet capture filter using a filter expression."""
