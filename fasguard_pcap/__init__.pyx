@@ -1,3 +1,4 @@
+# cython: c_string_type=str, c_string_encoding=ascii
 #
 # pcap.pyx
 #
@@ -92,8 +93,19 @@ cdef extern from "pcap/pcap.h" nogil:
                                 const char *str, int optimize,
                                 unsigned int netmask)
     void    pcap_breakloop(pcap_t *p)
+    int     pcap_can_set_rfmon(pcap_t *p)
+    void    pcap_free_tstamp_types(int *tstamp_types)
     int     pcap_get_tstamp_precision(pcap_t *p)
+    int     pcap_list_tstamp_types(pcap_t *p, int **tstamp_typesp)
+    int     pcap_set_buffer_size(pcap_t *p, int buffer_size)
+    int     pcap_set_promisc(pcap_t *p, int promisc)
+    int     pcap_set_rfmon(pcap_t *p, int rfmon)
+    int     pcap_set_snaplen(pcap_t *p, int snaplen)
+    int     pcap_set_timeout(pcap_t *p, int to_ms)
     int     pcap_set_tstamp_precision(pcap_t *p, int tstamp_precision)
+    int     pcap_set_tstamp_type(pcap_t *p, int tstamp_type)
+    int     pcap_tstamp_type_name_to_val(const char *name)
+    const char *pcap_tstamp_type_val_to_name(int tstamp_type)
     cdef enum:
         PCAP_ERRBUF_SIZE
         PCAP_TSTAMP_PRECISION_MICRO
@@ -213,6 +225,11 @@ cdef class pcap:
     cdef readonly bytes filter
     cdef char __ebuf[PCAP_ERRBUF_SIZE]
     cdef readonly str type
+    cdef object __promisc
+    cdef object __rfmon
+    cdef object __timeout
+    cdef object __buffer_size
+    cdef str __tstamp_type
 
     @staticmethod
     def open_dead(int linktype, int snaplen,
@@ -272,6 +289,8 @@ cdef class pcap:
             raise PcapError(ret.__ebuf)
         ret.name = device
         ret.type = 'live'
+        ret.__promisc = promisc
+        ret.__timeout = to_ms
         return ret
 
     @staticmethod
@@ -285,6 +304,13 @@ cdef class pcap:
         ret.type = 'live'
         return ret
 
+    def __cinit__(self, *args, **kwargs):
+        self.__promisc = False
+        self.__rfmon = False
+        self.__timeout = None
+        self.__buffer_size = None
+        self.__tstamp_type = None
+
     property snaplen:
         """Maximum number of bytes to capture for each packet."""
         def __get__(self):
@@ -292,7 +318,85 @@ cdef class pcap:
             with nogil:
                 ret = pcap_snapshot(self.__pcap)
             return ret
+        def __set__(self, int snaplen):
+            cdef int ret
+            with nogil:
+                ret = pcap_set_snaplen(self.__pcap, snaplen)
+            if ret != 0:
+                raise PcapError(self.geterr())
         
+    property promisc:
+        def __get__(self):
+            if self.type != 'live':
+                raise TypeError('not a live packet capture')
+            return self.__promisc
+        def __set__(self, bint promisc):
+            cdef int ret
+            with nogil:
+                ret = pcap_set_promisc(self.__pcap, promisc)
+            if ret != 0:
+                raise PcapError(self.geterr())
+            self.__promisc = promisc
+
+    property rfmon:
+        def __get__(self):
+            if self.type != 'live':
+                raise TypeError('not a live packet capture')
+            return self.__rfmon
+        def __set__(self, bint rfmon):
+            cdef int ret
+            with nogil:
+                ret = pcap_set_rfmon(self.__pcap, rfmon)
+            if ret != 0:
+                raise PcapError(self.geterr())
+            self.__rfmon = rfmon
+
+    property timeout:
+        def __get__(self):
+            if self.type != 'live':
+                raise TypeError('not a live packet capture')
+            return self.__timeout
+        def __set__(self, int to_ms):
+            cdef int ret
+            with nogil:
+                ret = pcap_set_timeout(self.__pcap, to_ms)
+            if ret != 0:
+                raise PcapError(self.geterr())
+            self.__timeout = to_ms
+
+    property buffer_size:
+        def __get__(self):
+            if self.type != 'live':
+                raise TypeError('not a live packet capture')
+            return self.__buffer_size
+        def __set__(self, int buffer_size):
+            cdef int ret
+            with nogil:
+                ret = pcap_set_buffer_size(self.__pcap, buffer_size)
+            if ret != 0:
+                raise PcapError(self.geterr())
+            self.__buffer_size = buffer_size
+
+    property tstamp_type:
+        def __get__(self):
+            if self.type != 'live':
+                raise TypeError('not a live packet capture')
+            return self.__tstamp_type
+        def __set__(self, str tstamp_type):
+            cdef int ts
+            cdef const char *tstamp_type_c = tstamp_type
+            with nogil:
+                ts = pcap_tstamp_type_name_to_val(tstamp_type_c)
+            cdef int ret
+            with nogil:
+                ret = pcap_set_tstamp_type(self.__pcap, ts)
+            if ret == PCAP_WARNING_TSTAMP_TYPE_NOTSUP:
+                PyErr_WarnEx(PcapWarning, self.geterr(), 1)
+                return
+            elif ret != 0:
+                raise PcapError(self.geterr())
+            self.__tstamp_type = tstamp_type
+
     property tstamp_precision:
         def __get__(self):
             cdef int ret
@@ -322,6 +426,14 @@ cdef class pcap:
     def fileno(self):
         """Return file descriptor (or Win32 HANDLE) for capture handle."""
         return self.fd
+
+    cpdef bint can_set_rfmon(self):
+        cdef int ret
+        with nogil:
+            ret = pcap_can_set_rfmon(self.__pcap)
+        if ret != 0 and ret != 1:
+            raise PcapError(self.geterr())
+        return ret
 
     cpdef activate(self):
         cdef int ret
@@ -541,6 +653,25 @@ cdef class pcap:
         if ret < 0:
             raise PcapError(self.geterr())
         return (pstat.ps_recv, pstat.ps_drop, pstat.ps_ifdrop)
+
+    cpdef list_tstamp_types(self):
+        cdef int ret
+        cdef int *types
+        cdef const char *name
+        with nogil:
+            ret = pcap_list_tstamp_types(self.__pcap, &types)
+        if ret < 0:
+            raise PcapError(errstr(self.geterr(), ret))
+        try:
+            type_list = []
+            for x in types[:ret]:
+                with nogil:
+                    name = pcap_tstamp_type_val_to_name(x)
+                type_list.append(<str>name)
+            return type_list
+        finally:
+            with nogil:
+                pcap_free_tstamp_types(types)
 
     cpdef ex_immediate(self):
         """disable buffering, if possible"""
