@@ -104,6 +104,7 @@ cdef extern from "pcap/pcap.h" nogil:
     int     pcap_set_timeout(pcap_t *p, int to_ms)
     int     pcap_set_tstamp_precision(pcap_t *p, int tstamp_precision)
     int     pcap_set_tstamp_type(pcap_t *p, int tstamp_type)
+    const char *pcap_statustostr(int error)
     int     pcap_tstamp_type_name_to_val(const char *name)
     const char *pcap_tstamp_type_val_to_name(int tstamp_type)
     cdef enum:
@@ -121,6 +122,20 @@ cdef extern from "pcap_ex.h" nogil:
     int     pcap_ex_next(pcap_t *p, pcap_pkthdr *hdr,
                          unsigned char **pkt)
     char   *pcap_ex_lookupdev(char *errbuf)
+
+cdef str errstr(str msg=None, int error=0):
+    """Return an error message string given pcap.geterr() and error number
+    """
+    cdef str newmsg = ""
+    cdef str sep = ""
+    if error != 0:
+        newmsg = pcap_statustostr(error)
+        sep = ": "
+    if msg is not None and len(msg) != 0:
+        newmsg += sep + msg
+    if len(newmsg) == 0:
+        newmsg = None
+    return newmsg
 
 class PcapError(Exception):
     pass
@@ -314,7 +329,7 @@ cdef class pcap:
             with nogil:
                 ret = pcap_set_snaplen(self.__pcap, snaplen)
             if ret != 0:
-                raise PcapError(self.geterr())
+                raise PcapError(errstr(self.geterr(), ret))
         
     property promisc:
         def __get__(self):
@@ -326,7 +341,7 @@ cdef class pcap:
             with nogil:
                 ret = pcap_set_promisc(self.__pcap, promisc)
             if ret != 0:
-                raise PcapError(self.geterr())
+                raise PcapError(errstr(self.geterr(), ret))
             self.__promisc = promisc
 
     property rfmon:
@@ -339,7 +354,7 @@ cdef class pcap:
             with nogil:
                 ret = pcap_set_rfmon(self.__pcap, rfmon)
             if ret != 0:
-                raise PcapError(self.geterr())
+                raise PcapError(errstr(self.geterr(), ret))
             self.__rfmon = rfmon
 
     property timeout:
@@ -352,7 +367,7 @@ cdef class pcap:
             with nogil:
                 ret = pcap_set_timeout(self.__pcap, to_ms)
             if ret != 0:
-                raise PcapError(self.geterr())
+                raise PcapError(errstr(self.geterr(), ret))
             self.__timeout = to_ms
 
     property buffer_size:
@@ -365,7 +380,7 @@ cdef class pcap:
             with nogil:
                 ret = pcap_set_buffer_size(self.__pcap, buffer_size)
             if ret != 0:
-                raise PcapError(self.geterr())
+                raise PcapError(errstr(self.geterr(), ret))
             self.__buffer_size = buffer_size
 
     property tstamp_type:
@@ -382,10 +397,10 @@ cdef class pcap:
             with nogil:
                 ret = pcap_set_tstamp_type(self.__pcap, ts)
             if ret == PCAP_WARNING_TSTAMP_TYPE_NOTSUP:
-                PyErr_WarnEx(PcapWarning, self.geterr(), 1)
+                PyErr_WarnEx(PcapWarning, errstr(self.geterr(), ret), 1)
                 return
             elif ret != 0:
-                raise PcapError(self.geterr())
+                raise PcapError(errstr(self.geterr(), ret))
             self.__tstamp_type = tstamp_type
 
     property tstamp_precision:
@@ -399,7 +414,7 @@ cdef class pcap:
             with nogil:
                 ret = pcap_set_tstamp_precision(self.__pcap, tstamp_precision)
             if ret != 0:
-                raise PcapError(self.geterr())
+                raise PcapError(errstr(self.geterr(), ret))
 
     property dloff:
         """Datalink offset (length of layer-2 frame header)."""
@@ -423,7 +438,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_can_set_rfmon(self.__pcap)
         if ret != 0 and ret != 1:
-            raise PcapError(self.geterr())
+            raise PcapError(errstr(self.geterr(), ret))
         return ret
 
     cpdef activate(self):
@@ -433,9 +448,9 @@ cdef class pcap:
         if ret == PCAP_WARNING_PROMISC_NOTSUP \
            or ret == PCAP_WARNING_TSTAMP_TYPE_NOTSUP \
            or ret == PCAP_WARNING:
-            PyErr_WarnEx(PcapWarning, self.geterr(), 1)
+            PyErr_WarnEx(PcapWarning, errstr(self.geterr(), ret), 1)
         elif ret != 0:
-            raise PcapError(self.geterr())
+            raise PcapError(errstr(self.geterr(), ret))
     
     def setfilter(self, const char *value, int optimize=1):
         """Set packet capture filter using a filter expression."""
@@ -463,7 +478,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_setfilter(self.__pcap, fp)
         if ret < 0:
-            raise PcapError(self.geterr())
+            raise PcapError(errstr(self.geterr(), ret))
 
     def compile(self, const char *value, bint optimize=True,
                 unsigned int netmask=0):
@@ -483,7 +498,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_compile(self.__pcap, fp, s, optimize, netmask)
         if ret < 0:
-            raise PcapError(self.geterr())
+            raise PcapError(errstr(self.geterr(), ret))
 
     def setdirection(self, pcap_direction_t value):
         """Set BPF capture direction."""
@@ -491,7 +506,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_setdirection(self.__pcap, value)
         if ret < 0:
-            raise PcapError(self.geterr())
+            raise PcapError(errstr(self.geterr(), ret))
 
     def setnonblock(self, bint nonblock=True):
         """Set non-blocking capture mode."""
@@ -504,7 +519,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_getnonblock(self.__pcap, self.__ebuf)
         if ret < 0:
-            raise PcapError(self.__ebuf)
+            raise PcapError(errstr(self.__ebuf, ret))
         elif ret:
             return True
         return False
@@ -619,7 +634,7 @@ cdef class pcap:
         finally:
             PyBuffer_Release(&view)
         if (n < 0):
-            raise PcapError(self.geterr())
+            raise PcapError(errstr(self.geterr(), n))
 
         return n
 
@@ -644,7 +659,7 @@ cdef class pcap:
         with nogil:
             ret = pcap_stats(self.__pcap, &pstat)
         if ret < 0:
-            raise PcapError(self.geterr())
+            raise PcapError(errstr(self.geterr(), ret))
         return (pstat.ps_recv, pstat.ps_drop, pstat.ps_ifdrop)
 
     cpdef list_tstamp_types(self):
