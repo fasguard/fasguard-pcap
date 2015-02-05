@@ -195,19 +195,10 @@ def compile(char *str, int snaplen=65536, int dlt=DLT_RAW, int optimize=1,
     """Compile a pcap filter expression to a BPF program.
        This is not a class method, because we want to do the same
        from within the pcap class."""
-    cdef bpf_program prog
-    cdef int rc
-    prog.bf_len = 0
-    prog.bf_insns = NULL
-    with nogil:
-        rc = pcap_compile_nopcap(snaplen, dlt, &prog, str, optimize, netmask)
-    if rc == -1:
-        raise PcapError()
-    # Python-ize the bpf_program. Note that this simply wraps the buffer
-    # which pcap just allocated in the C library heap.
-    pb = fasguard_pcap.bpf.progbuf(<object> &prog, None)
-    program = pb.__program__()
-    return program
+    # avoid pcap_compile_nopcap() because it doesn't provide a way to
+    # access the error buffer
+    with pcap.open_dead(dlt, snaplen) as p:
+        return p.compile(str, optimize, netmask)
 
 cdef class pcap:
     """Handle to a packet capture descriptor.
@@ -480,6 +471,8 @@ cdef class pcap:
            Return the filter as a bpf program."""
         cdef bpf_program fcode
         self.__compile(&fcode, value, optimize, netmask)
+        # Python-ize the bpf_program. Note that this simply wraps the
+        # buffer which pcap just allocated in the C library heap.
         pb = fasguard_pcap.bpf.progbuf(<object>&fcode, None)
         program = pb.__program__()
         return program
