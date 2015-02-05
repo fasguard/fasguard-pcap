@@ -323,6 +323,8 @@ cdef class pcap:
             cdef int ret
             with nogil:
                 ret = pcap_snapshot(self.__pcap)
+            if ret < 0:
+                raise PcapError(errstr(self.geterr(), ret))
             return ret
         def __set__(self, int snaplen):
             cdef int ret
