@@ -547,15 +547,6 @@ cdef class pcap:
         return (hdr,
                 MemoryBuffer_init(<void *>pkt, hdr.caplen))
 
-    def __add_pkts(self, ts, pkt, pkts):
-        pkts.append((ts, pkt))
-    
-    def readpkts(self):
-        """Return a list of (header, packet) tuples received in one buffer."""
-        pkts = []
-        self.dispatch(-1, self.__add_pkts, pkts)
-        return pkts
-    
     def dispatch(self, int cnt, callback, *args):
         """Collect and process packets with a user callback,
         return the number of packets processed, or 0 for a savefile.
