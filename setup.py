@@ -37,8 +37,7 @@
 # Description: The setup script for all of fasguard-pcap
 #
 
-from distutils.core import setup
-from distutils.extension import Extension
+from setuptools import setup, Extension
 from Cython.Distutils import build_ext
 
 # XXX The Pyrex Distutils extension is currently unable to propagate
